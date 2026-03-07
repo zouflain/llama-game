@@ -3,6 +3,35 @@ from typing import defaultdict
 import OpenGL.GL as GL
 
 class Framebuffer(Resource):
+    class Binding:
+        __fbo: int = 0
+        __resolution: tuple[float, float] = None
+
+        def __init__(self, framebuffer: Framebuffer, fallback: tuple[float, float] = None):
+            self.prev_resolution = Framebuffer.Binding.__resolution
+            self.prev_fbo = Framebuffer.Binding.__fbo
+            self.fbo = framebuffer.fbo
+            self.resolution = framebuffer.resolution
+            self.fallback = fallback
+            Framebuffer.Binding.__fbo = self.fbo
+            Framebuffer.Binding.__resolution = self.resolution
+
+        def __enter__(self) -> Framebuffer.Binding:
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo)
+            GL.glViewport(0, 0, self.resolution[0], self.resolution[1])
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+            Framebuffer.Binding.__resolution = self.prev_resolution
+            Framebuffer.Binding.__fbo = self.prev_fbo
+
+            resolution = self.prev_resolution or self.fallback
+            #TODO: assert(resolution)
+
+            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.prev_fbo)
+            GL.glViewport(0, 0, resolution[0], resolution[1])
+
+
 
     def __init__(self, name: str, permanent: bool, resolution: tuple[int, int], fbo: int, textures: dict):
         super().__init__(name, permanent)

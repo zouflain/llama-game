@@ -1,5 +1,6 @@
 from __future__ import annotations
 import OpenGL.GL as GL
+import glm as GLM
 import sdl2 as SDL
 
 from .system import System
@@ -44,13 +45,15 @@ class Battle(System):
         if shader is None:
             shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert") #TODO: this is shit logic, should pull from shared
 
-        framebuffer.bind()
         renderable = Resources.Renderable["mage"]
-        GL.glUseProgram(shader.program)
 
-
-        GL.glUseProgram(0)
-        framebuffer.unbind(event.resolution)
+        with Resources.Framebuffer.Binding(framebuffer, event.resolution):
+            with Resources.Shader.Binding(shader):
+                GL.glUniform4f(SceneRenderer.DynamicUniforms.MODEL, actor.world_pos.x, actor.world_pos.y, 0, actor.facing)
+                renderable.draw(
+                    [mesh for mesh in renderable.meshes.keys()],
+                    [Resources.Renderable.BlendFactor(0, 0, 1, 1)]
+                )
 
         GL.glNamedFramebufferReadBuffer(framebuffer.fbo, GL.GL_COLOR_ATTACHMENT0)
         GL.glBlitNamedFramebuffer(framebuffer.fbo, 0, 0, 0, fbo_res[0], fbo_res[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)

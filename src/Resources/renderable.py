@@ -1,6 +1,7 @@
 from .resource import Resource
 from scipy.spatial.transform import Rotation
 from dataclasses import dataclass
+from enum import Enum
 import numpy as np
 import OpenGL.GL as GL
 
@@ -25,6 +26,14 @@ class Renderable(Resource):
             ("scale", (np.float32, 3))
         ]
     )
+
+    class Bindings(int, Enum):
+        VERTICES = 0
+        BONES = 1
+
+        MODEL = 0
+        VIEW = 1
+        PROJ = 2
 
     class Mesh:
         def __init__(self, vertex_data: np.array):
@@ -52,6 +61,7 @@ class Renderable(Resource):
         self.frames = frames
         self.bones_ssbo = GL.glGenBuffers(1)
 
+    '''
     def setBonesSSBO(self, blend_factors: list[Renderable.BlendFactor]) -> None:
         num_bones = len(self.inverses)
         
@@ -90,6 +100,56 @@ class Renderable(Resource):
 
         final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
         GL.glNamedBufferStorage(self.bones_ssbo, final_bones.nbytes(), final_bones, GL.GL_DYNAMIC_STORAGE_BIT)
+    '''
+
+    def draw(self, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
+        # Do the interpolations
+        num_bones = len(self.inverses)
+        
+        ## Accumulated bones
+        a_pos = np.zeros((num_bones, 3), dtype=np.float32)
+        a_scale = np.zeros((num_bones, 3), dtype=np.float32)
+        a_rvec = np.zeros((num_bones, 3), dtype=np.float32)
+
+        ## Blend
+        for factor in blend_factors:
+            # fetch bones
+            bones_start = self.frames[factor.start_frame]
+            bones_end = self.frames[factor.end_frame]
+
+            # interpolate frame
+            i_pos = (1 - factor.frame_coefficient)*bones_start["pos"] + factor.frame_coefficient*bones_end["pos"]
+            i_scale = (1 - factor.frame_coefficient)*bones_start["scale"] + factor.frame_coefficient*bones_end["scale"]
+
+            # SLERP
+            r1 = Rotation.from_quat(bones_start["quat"])
+            r2 = Rotation.from_quat(bones_end["quat"])
+            i_rot = r1*(r2*r1.inv())**factor.frame_coefficient
+
+            # blend animations
+            a_pos += i_pos*factor.blend_coefficient
+            a_scale += i_scale*factor.blend_coefficient
+            a_rvec += i_rot.as_rotvec()*factor.blend_coefficient
+
+        a_rvec /= np.linalg.norm(a_rvec, axis=1, keepdims=True)
+        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
+
+        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
+        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
+        blend_matrices[:, :3, 3] = a_pos
+        blend_matrices[:, 3, 3] = 1.0
+
+        final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
+        GL.glNamedBufferStorage(self.bones_ssbo, final_bones.nbytes, final_bones.swapaxes(1, 2), GL.GL_DYNAMIC_STORAGE_BIT)
+
+        # Finally, draw it
+        GL.glBindBufferBase(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.BONES, self.bones_ssbo)
+        for mesh_name in mesh_list:
+            mesh = self.meshes.get(mesh_name)
+            if mesh:
+                GL.glBindBufferBase(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.VERTICES, mesh.ssbo)
+                GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(mesh.vertex_data))
+            # TODO: warn if not
 
     @staticmethod
     async def allocate(name: str, permanent: bool, fname: str, ftype: str) -> Renderable:

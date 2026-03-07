@@ -4,10 +4,27 @@ from OpenGL.GL.shaders import compileProgram, compileShader
 import OpenGL.GL as GL
 
 class Shader(Resource):
+    class Binding:
+        __prev_prog: int = 0
+
+        def __init__(self, shader: Shader):
+            self.prev = Shader.Binding.__prev_prog
+            self.program = shader.program
+            Shader.Binding.__prev_prog = self.program
+
+        def __enter__(self) -> Shader.Binding:
+            GL.glUseProgram(self.program)
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+            Shader.Binding.__prev_prog = self.prev
+            GL.glUseProgram(self.prev)
+
     def __init__(self, name: str, permanent: bool = False):
         super().__init__(name, permanent)
         self.program = 0
         self.shaders = []
+
 
     @staticmethod
     async def allocate(name: str, permanent: bool, fname: str) -> Shader:
