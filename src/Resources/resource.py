@@ -60,7 +60,7 @@ class Resource:
     async def register(self) -> None:
         cls = type(self)
         if self.name in Resource.__available_resources[cls]:
-            Resource.__available_resources[cls][self.name].deallocate()
+            await Resource.__available_resources[cls][self.name].deallocate()
         Resource.__available_resources[cls][self.name] = self
 
     @classmethod

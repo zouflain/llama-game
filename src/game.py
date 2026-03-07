@@ -110,13 +110,12 @@ class Game:
 
         #####TEST CODE#####
         #await Resources.Shader.generate(name="attacks", permanent=True, fname="attack_undefended.yaml")
-        await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert")
         await Resources.FrameData.generate(name="attacks", permanent=True, fname="attack_undefended.yaml")
         #await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.daex", ftype="glb")
         #await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.glb", ftype="glb")
         await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.Z3D", ftype="glb")
         print(Resources.FrameData["attacks"].data)
-        Systems.register(Systems.Battle())
+        await Systems.register(Systems.Battle())
         player = Components.Character(self.next_entity)
         player = Components.PartyMember(self.next_entity)
         self.next_entity = self.next_entity + 1

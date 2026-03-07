@@ -5,3 +5,4 @@ llama-cpp-python
 fs
 setuptools<81
 pyglm
+scipy

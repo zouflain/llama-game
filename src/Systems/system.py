@@ -73,17 +73,27 @@ class System:
             yield System.__pending_events.pop()
 
     @staticmethod
-    def register(system: System) -> None:
+    async def register(system: System) -> bool:
+        result = True
         if system not in System.__active_systems:
-            System.__active_systems.append(system)
-            for event_type in system.listeners.keys():
-                System.__recache(event_type)
+            result = await system.boot()
+            if result:
+                System.__active_systems.append(system)
+                for event_type in system.listeners.keys():
+                    System.__recache(event_type)
+        return result
 
     @staticmethod
-    def unregister(system: System) -> None:
+    async def unregister(system: System) -> None:
         System.__active_systems.remove(system)
+        await system.unboot()
         for event_type in system.listeners.keys():
             System.__recache(event_type)
+
+    async def boot(self) -> bool:
+        return True
+
+    async def unboot(self) -> bool: pass
 
 
 # Syntatic Sugar

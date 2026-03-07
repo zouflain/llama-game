@@ -1,7 +1,6 @@
 from .resource import Resource
-from collada import Collada
-from pygltflib import GLTF2
-from collections import defaultdict
+from scipy.spatial.transform import Rotation
+from dataclasses import dataclass
 import numpy as np
 import OpenGL.GL as GL
 
@@ -22,7 +21,7 @@ class Renderable(Resource):
     __bone_dtype = np.dtype(
         [
             ("pos", (np.float32, 3)),
-            ("quat", (np.float32, 4)), # wxyz
+            ("quat", (np.float32, 4)), # xyzw
             ("scale", (np.float32, 3))
         ]
     )
@@ -30,8 +29,20 @@ class Renderable(Resource):
     class Mesh:
         def __init__(self, vertex_data: np.array):
             self.vertex_data = vertex_data
-            self.ssbo = GL.glCreateBuffers(1)
+
+            '''buffer_array = (GL.GLuint * 1)()
+            GL.glCreateBuffers(1, buffer_array)
+            self.ssbo = buffer_array[0]'''
+            self.ssbo = GL.glGenBuffers(1)
             GL.glNamedBufferStorage(self.ssbo, self.vertex_data.nbytes, self.vertex_data, 0)
+
+
+    @dataclass
+    class BlendFactor:
+        start_frame: int
+        end_frame: int
+        frame_coefficient: float
+        blend_coefficient: float
 
 
     def __init__(self, name: str, permanent: bool, meshes: dict, inverses: np.array, frames: np.array):
@@ -39,13 +50,47 @@ class Renderable(Resource):
         self.meshes = meshes
         self.inverses = inverses
         self.frames = frames
+        self.bones_ssbo = GL.glGenBuffers(1)
 
-        self.inverse_ssbo = GL.glCreateBuffers(1)
-        GL.glNamedBufferStorage(self.inverse_ssbo, self.inverses.nbytes, self.inverses, 0)
-
-        self.frames_ssbo = GL.glCreateBuffers(1)
-        GL.glNamedBufferStorage(self.frames, self.frames.nbytes, self.frames, 0)
+    def setBonesSSBO(self, blend_factors: list[Renderable.BlendFactor]) -> None:
+        num_bones = len(self.inverses)
         
+        # Accumulated bone
+        a_pos = np.zeros((num_bones, 3), dtype=np.float32)
+        a_scale = np.zeros((num_bones, 3), dtype=np.float32)
+        a_rvec = np.zeros((num_bones, 3), dtype=np.float32)
+
+        # Blend
+        for factor in blend_factors:
+            # fetch bones
+            bones_start = self.frames[factor.start_frame * num_bones : (factor.start_frame+1)*num_bones]
+            bones_end = self.frames[factor.end_frame * num_bones : (factor.end_frame+1)*num_bones]
+
+            # interpolate frame
+            i_pos = (1 - factor.frame_coefficient)*bones_start["pos"] + factor.frame_coefficient*bones_end["pos"]
+            i_scale = (1 - factor.frame_coefficient)*bones_start["scale"] + factor.frame_coefficient*bones_end["scale"]
+
+            # SLERP
+            r1 = Rotation.from_quat(bones_start["quat"])
+            r2 = Rotation.from_quat(bones_end["quat"])
+            i_rot = r1*(r2*r1.inv()).pow(factor.frame_coefficient)
+
+            # blend animations
+            a_pos += i_pos*factor.blend_coefficient
+            a_scale += i_scale*factor.blend_coefficient
+            a_rvec += i_rot.as_rotvec()*factor.blend_coefficient
+
+        a_quat /= np.linalg.norm(a_quat, axis=1, keepdims=True)
+        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
+
+        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
+        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
+        blend_matrices[:, :3, 3] = a_pos
+        blend_matrices[:, 3, 3] = 1.0
+
+        final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
+        GL.glNamedBufferStorage(self.bones_ssbo, final_bones.nbytes(), final_bones, GL.GL_DYNAMIC_STORAGE_BIT)
+
     @staticmethod
     async def allocate(name: str, permanent: bool, fname: str, ftype: str) -> Renderable:
         # load from file
@@ -60,12 +105,14 @@ class Renderable(Resource):
             num_meshes = np.frombuffer(file.read(4), dtype=np.int32)[0]
             for i in range(num_meshes):
                 buffer = file.peek(64)
-                name = file.read(buffer.find(b'\x00')+1)[:-1].decode("utf-8")
+                mesh_name = file.read(buffer.find(b'\x00')+1)[:-1].decode("utf-8")
                 num_verts = np.frombuffer(file.read(4), dtype=np.int32)[0]
                 vertices = np.frombuffer(file.read(Renderable.__vertex_dtype.itemsize*num_verts), dtype=Renderable.__vertex_dtype)
-                meshes[name] = Renderable.Mesh(vertices)
+                meshes[mesh_name] = Renderable.Mesh(vertices)
 
-        return Renderable(name, permanent, meshes, inverses, frames)
+        item = Renderable(name, permanent, meshes, inverses, frames)
+        await item.register()
+        return item
 
     async def deallocate(self) -> None:
         for mesh in self.meshes.values():

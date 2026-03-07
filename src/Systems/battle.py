@@ -3,7 +3,7 @@ import OpenGL.GL as GL
 import sdl2 as SDL
 
 from .system import System
-import Events, Components
+import Events, Components, Resources
 
 class Combatant(Components.Component):
     def __init__(self, *args, **kwargs):
@@ -25,7 +25,6 @@ class BattleAnimator(Components.Component):
 class Battle(System):
     def __init__(self):
         super().__init__()
-        self.framebuffer = None
 
     @System.on(Events.Render, 100)
     async def onRenderStep(self, event: Events.Render) -> bool:
@@ -34,12 +33,27 @@ class Battle(System):
         fbo_res = (640, 480)
         GL.glClearColor(1,1,0,1)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
-        from Resources import Framebuffer
-        if self.framebuffer is None:
-            self.framebuffer = await Framebuffer.allocate("battle_buffer", False, fbo_res, 1)
 
-        GL.glNamedFramebufferReadBuffer(self.framebuffer.fbo, GL.GL_COLOR_ATTACHMENT0)
-        GL.glBlitNamedFramebuffer(self.framebuffer.fbo, 0, 0, 0, fbo_res[0], fbo_res[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
+        # Setup/Allocate (rechecks every frame to be sure these things dont get deallocated randomly)
+        framebuffer = Resources.Framebuffer["battle_buffer"]
+        shader = Resources.Shader["renderable"]
+
+        if framebuffer is None:
+            framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, fbo_res, 1)
+
+        if shader is None:
+            shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert") #TODO: this is shit logic, should pull from shared
+
+        framebuffer.bind()
+        renderable = Resources.Renderable["mage"]
+        GL.glUseProgram(shader.program)
+
+
+        GL.glUseProgram(0)
+        framebuffer.unbind(event.resolution)
+
+        GL.glNamedFramebufferReadBuffer(framebuffer.fbo, GL.GL_COLOR_ATTACHMENT0)
+        GL.glBlitNamedFramebuffer(framebuffer.fbo, 0, 0, 0, fbo_res[0], fbo_res[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
         SDL.SDL_GL_SwapWindow(event.window)
         #### END TEST CODE ####
 

@@ -58,7 +58,7 @@ class Framebuffer(Resource):
 
     @staticmethod
     def unbind(window_resolution: tuple[int, int]):
-        GL.glBindFrambuffer(GL.GL_FRAMEBUFFER, 0)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, window_resolution[0], window_resolution[1])
 
     async def deallocate(self):
