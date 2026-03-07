@@ -1,7 +1,6 @@
 from .resource import Resource
 from typing import defaultdict
 import OpenGL.GL as GL
-import sdl2 as SDL
 
 class Framebuffer(Resource):
 
