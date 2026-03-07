@@ -1,0 +1,8 @@
+pyopengl
+pysdl2
+gguf
+llama-cpp-python
+fs
+setuptools<81
+pyglm
+pycollada

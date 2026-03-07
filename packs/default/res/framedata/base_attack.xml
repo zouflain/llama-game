@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<data>
+    <framedata_definition name="BasicAttack" animation="BasicAttack">
+        <frames>
+            <frame duration="0.3"/>
+            <frame duration="0.1">
+                <enter>
+                    <spawn_hitbox>
+                        <name type="str">basic</name>
+                        <index type="int">0</index>
+                        <hit_type type="str">hit</hit_type>
+                    </spawn_hitbox>
+                    <play_sound>
+                        <file type="str">sword.mp3</file>
+                    </play_sound>
+                </enter>
+                <exit>
+                    <despawn_hitbox>
+                        <index type="int">0</index>
+                    </despawn_hitbox>
+                </exit>
+            </frame>
+            <frame duration="0.3"/>
+        </frames>
+        <hitbox_properties>
+            <hitbox_property name="basic" shape="segment" radius="100">
+                <offset x="60" y="30"/>
+                <offset x="60" y="-30"/>
+            </hitbox_property>
+        </hitbox_properties>
+    </framedata_definition>
+</data>

@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<data>
+    <action_definitions>
+        <action_definition name="ApproachHostile" target_mask="1" priority="3.0" automata="Walking">
+            <consideration type="IsSelf" m="-1" k="0" b="0" c="0.5" method="bool" low="0" high="1" />
+            <consideration type="ActorLineDistance" m="-2" k="1" b="1" c="0" method="lin" low="0" high="2500" />
+        </action_definition>
+        <action_definition name="DoNothing" target_mask="1" priority="1.0" automata="Idle"></action_definition>
+        <action_definition name="AttackMelee" target_mask="1" priority="3.0" automata="AttackMelee">
+            <consideration type="IsSelf" m="-1" k="0" b="0" c="0.5" method="bool" low="0" high="1" />
+            <consideration type="ActorLineDistance" m="10" k="-1" b="1" c="1" method="log" low="0" high="300"/>
+            <metadata>
+                <framedata type="str">BasicAttack</framedata>
+            </metadata>
+        </action_definition>
+    </action_definitions>
+    <action_sets>
+        <action_set name="Base">
+            <action definition="ApproachHostile"/>
+            <action definition="AttackMelee"/>
+            <action definition="DoNothing"/>
+        </action_set>
+    </action_sets>
+</data>
