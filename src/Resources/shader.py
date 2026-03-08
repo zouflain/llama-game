@@ -66,6 +66,7 @@ class Shader(Resource):
         if self.program:
             for shader in self.shaders:
                 GL.glDetachShader(self.program, shader)
-                GL.glDeleteShader(shader)
+                if GL.glIsShader(shader):
+                    GL.glDeleteShader(shader)
             GL.glDeleteProgram(self.program)
         await super().deallocate()

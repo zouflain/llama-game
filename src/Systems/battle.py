@@ -2,6 +2,7 @@ from __future__ import annotations
 import OpenGL.GL as GL
 import glm as GLM
 import sdl2 as SDL
+import numpy as np
 
 from .system import System
 import Events, Components, Resources
@@ -43,32 +44,30 @@ class Battle(System):
             framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, fbo_res, 1)
 
         if shader is None:
-            shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert") #TODO: this is shit logic, should pull from shared
+            shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert")
 
         renderable = Resources.Renderable["mage"]
 
+        GL.glEnable(GL.GL_DEPTH_TEST)
         with Resources.Framebuffer.Binding(framebuffer, event.resolution):
+            GL.glClearColor(0.05,0.05,0.05,1)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
             with Resources.Shader.Binding(shader):
-                GL.glUniform4f(SceneRenderer.DynamicUniforms.MODEL, actor.world_pos.x, actor.world_pos.y, 0, actor.facing)
+                model = np.eye(4, dtype=np.float32)*70
+                model[3][3] = 1.0
+                view = GLM.lookAt((-10, -10, 10), (0, 0, 0), (0, 0, 1))
+                projection = GLM.ortho(-framebuffer.resolution[0]/2, framebuffer.resolution[0]/2, -framebuffer.resolution[1]/2, framebuffer.resolution[1]/2, -1000, 1000)
                 renderable.draw(
-                    [mesh for mesh in renderable.meshes.keys()],
-                    [Resources.Renderable.BlendFactor(0, 0, 1, 1)]
+                    model,
+                    view,
+                    projection,
+                    [mesh for mesh in renderable.meshes.keys() if mesh != "Icosphere"],
+                    [Resources.Renderable.BlendFactor(738, 738, 1, 1)]
                 )
-
         GL.glNamedFramebufferReadBuffer(framebuffer.fbo, GL.GL_COLOR_ATTACHMENT0)
         GL.glBlitNamedFramebuffer(framebuffer.fbo, 0, 0, 0, fbo_res[0], fbo_res[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
         SDL.SDL_GL_SwapWindow(event.window)
         #### END TEST CODE ####
-
-        '''
-        # Vertex data in SSBO, but OpenGL *REQUIRES* bound VBO
-        #GL.glBindBuffer(GL.GL_ARRAY_BUFFER, event.blank_vbo)
-        #GL.glBindVertexArray(event.blank_vao)
-
-        # Actual draw code...
-        # GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
-        SDL.SDL_GL_SwapWindow(event.window)
-        '''
 
         return False
 

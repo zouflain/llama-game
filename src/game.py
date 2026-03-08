@@ -1,5 +1,5 @@
 PROFILE_MODE = True
-GL_DEBUG_MODE = False
+GL_DEBUG_MODE = True
 
 
 import OpenGL
@@ -48,9 +48,8 @@ class Game:
         self.gl_context = None
         self.resources = dict()
         self.is_running = False
-        self.screen_dimensions = (1920, 1000)
+        self.screen_dimensions = (1280, 720)
         self.target_resolution = (640, 360)
-        self.blank_vbo = None
         self.blank_vao = None
         self.next_entity = 0
         self.file_system = None
@@ -87,18 +86,14 @@ class Game:
         GL.glClearColor(0.15, 0.15, 0.15, 0.15)
 
         ## Vertices are drawn using SSBO's instead of VBOs, but openGL will not tolerate not having one bound
-        vbos = (GL.GLuint * 1)()
-        vaos = (GL.GLuint * 1)()
-        GL.glGenBuffers(1, vbos)
-        GL.glGenVertexArrays(1, vaos)
-        self.blank_vbo = vbos[0]
-        self.blank_vao = vaos[0]
+        self.blank_vao = GL.glGenVertexArrays(1)
+        GL.glBindVertexArray(self.blank_vao)
 
         # controllers
         SDL.SDL_InitSubSystem(SDL.SDL_INIT_JOYSTICK)
 
         #schedule the Render pass
-        self.scheduled_tasks.append(Game.ScheduledTask(Events.Render, Game.Constants.RENDER_FPS, window=self.window, resolution=self.screen_dimensions, blank_vbo=self.blank_vbo, blank_vao=self.blank_vao))
+        self.scheduled_tasks.append(Game.ScheduledTask(Events.Render, Game.Constants.RENDER_FPS, window=self.window, resolution=self.screen_dimensions))
 
 
     async def boot(self) -> None:

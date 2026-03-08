@@ -45,6 +45,6 @@ void main(){
     }
     world_pos = model * world_pos;
     frag_pos = vec3(world_pos);
-    frag_normal = normalize(vec3(world_norm));
+    frag_normal = normalize(mat3(model)*vec3(world_norm));
     gl_Position = projection * view * world_pos;
 }
