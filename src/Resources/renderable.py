@@ -67,13 +67,15 @@ class Renderable(Resource):
         GL.glNamedBufferStorage(self.bones_ssbo, 64*len(inverses), None, GL.GL_DYNAMIC_STORAGE_BIT)
 
     def draw(self, model: np.array, view: GLM.mat4x4, projection: GLM.mat4x4, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
-        # Do the interpolations
+        '''
+       # Do the interpolations
         num_bones = len(self.inverses)
         
         ## Accumulated bones
         a_pos = np.zeros((num_bones, 3), dtype=np.float32)
         a_scale = np.zeros((num_bones, 3), dtype=np.float32)
         a_rvec = np.zeros((num_bones, 3), dtype=np.float32)
+
 
         ## Blend
         for factor in blend_factors:
@@ -94,7 +96,7 @@ class Renderable(Resource):
             a_pos += i_pos*factor.blend_coefficient
             a_scale += i_scale*factor.blend_coefficient
             a_rvec += i_rot.as_rotvec()*factor.blend_coefficient
-            
+
         final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
 
         blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
@@ -103,15 +105,32 @@ class Renderable(Resource):
         blend_matrices[:, 3, 3] = 1.0
 
         final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
+        '''
 
-        #Correcting space
+
+        num_bones = len(self.inverses)
+        bonez = self.frames[blend_factors[0].end_frame]
+        a_pos = bonez["pos"]
+        a_scale = bonez["scale"]
+        a_rvec =  Rotation.from_quat(bonez["quat"]).as_rotvec()
+        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
+
+        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
+        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
+        blend_matrices[:, :3, 3] = a_pos
+        blend_matrices[:, 3, 3] = 1.0
+        final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
+
         '''
         world_matrices = np.zeros_like(blend_matrices)
         for i in range(num_bones):
+            x = blend_matrices[i] @ self.inverses.reshape(-1, 4, 4)[i]
+            print(x)
             world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else world_matrices[self.parent_ids[i]] @ blend_matrices[i]
+            #world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else blend_matrices[i] @ world_matrices[self.parent_ids[i]]
         final_bones = np.matmul(world_matrices, self.inverses.reshape(-1, 4, 4))
         '''
-
+        
         # Finally, draw it
         GL.glUniformMatrix4fv(Renderable.Bindings.MODEL, 1, False, model)
         GL.glUniformMatrix4fv(Renderable.Bindings.VIEW, 1, False, GLM.value_ptr(view))

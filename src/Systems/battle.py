@@ -41,7 +41,7 @@ class Battle(System):
         shader = Resources.Shader["renderable"]
 
         if framebuffer is None:
-            framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, fbo_res, 1)
+            framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, fbo_res, 2)
 
         if shader is None:
             shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert")
@@ -55,14 +55,19 @@ class Battle(System):
             with Resources.Shader.Binding(shader):
                 model = np.eye(4, dtype=np.float32)*70
                 model[3][3] = 1.0
-                view = GLM.lookAt((-10, -10, 10), (0, 0, 0), (0, 0, 1))
+                view = GLM.lookAt((10, -10, 10), (0, 0, 0), (0, 0, 1))
                 projection = GLM.ortho(-framebuffer.resolution[0]/2, framebuffer.resolution[0]/2, -framebuffer.resolution[1]/2, framebuffer.resolution[1]/2, -1000, 1000)
                 renderable.draw(
                     model,
                     view,
                     projection,
-                    [mesh for mesh in renderable.meshes.keys() if mesh != "Icosphere"],
-                    [Resources.Renderable.BlendFactor(738, 738, 1, 1)]
+                    [
+                        mesh for mesh in renderable.meshes.keys() if mesh not in [
+                            "Icosphere", "Spellbook", "Spellbook_open", "Mage_Hat",
+                            "Mage_Cape", "2H_Staff", "1H_Wand"
+                        ]
+                    ],
+                    [Resources.Renderable.BlendFactor(0, 0, 1, 1)]
                 )
         GL.glNamedFramebufferReadBuffer(framebuffer.fbo, GL.GL_COLOR_ATTACHMENT0)
         GL.glBlitNamedFramebuffer(framebuffer.fbo, 0, 0, 0, fbo_res[0], fbo_res[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)

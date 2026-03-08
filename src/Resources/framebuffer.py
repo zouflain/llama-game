@@ -60,14 +60,14 @@ class Framebuffer(Resource):
                 GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0+i, GL.GL_TEXTURE_2D, texture_ids[i], 0)
                 textures[GL.GL_COLOR_ATTACHMENT0+i] = texture_ids[i]
 
-                # attach depth buffer
-                depth = GL.glGenTextures(1)
-                GL.glBindTexture(GL.GL_TEXTURE_2D, depth)
-                GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT24, resolution[0], resolution[1], 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
-                GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-                GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)     
-                GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, depth, 0)
-                textures[GL.GL_DEPTH_ATTACHMENT] = depth
+            # attach depth buffer
+            depth = GL.glGenTextures(1)
+            GL.glBindTexture(GL.GL_TEXTURE_2D, depth)
+            GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT24, resolution[0], resolution[1], 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)     
+            GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, depth, 0)
+            textures[GL.GL_DEPTH_ATTACHMENT] = depth
 
             item = Framebuffer(name, permanent, resolution, fbo, textures)
 
