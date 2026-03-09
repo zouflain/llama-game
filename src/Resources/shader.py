@@ -1,24 +1,43 @@
 from __future__ import annotations
 from .resource import Resource
 from OpenGL.GL.shaders import compileProgram, compileShader
+from dataclasses import dataclass
 import OpenGL.GL as GL
 
 class Shader(Resource):
     class Binding:
-        __prev_prog: int = 0
+        __prev_bind: list[Shader.Binding] = []
 
         def __init__(self, shader: Shader):
-            self.prev = Shader.Binding.__prev_prog
-            self.program = shader.program
-            Shader.Binding.__prev_prog = self.program
+            self.program: int = shader.program
+            self.buffers: dict[int, tuple[int, int]] = {}
 
         def __enter__(self) -> Shader.Binding:
+            Shader.Binding.__prev_bind.append(self)
             GL.glUseProgram(self.program)
             return self
 
         def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-            Shader.Binding.__prev_prog = self.prev
-            GL.glUseProgram(self.prev)
+            # Unbind everything owned by this program
+            for index, (target, buffer_id) in self.buffers.items():
+                GL.glBindBufferBase(target, index, 0)
+
+            # Pop the stack and bind the top OR set the program to zero
+            Shader.Binding.__prev_bind.pop()
+            if Shader.Binding.__prev_bind:
+                Shader.Binding.__prev_bind[-1].rebind()
+            else:
+                GL.glUseProgram(0)
+
+        def bind(self, target: GL.glEnum, index: int, buffer_id: int) -> None:
+            self.buffers[index] = (target, buffer_id)
+            GL.glBindBufferBase(target, index, buffer_id)
+
+        def rebind(self) -> None:
+            GL.glUseProgram(self.program)
+            for index, (target, buffer_id) in self.buffers.items():
+                GL.glBindBufferBase(target, index, buffer_id)
+
 
     def __init__(self, name: str, permanent: bool = False):
         super().__init__(name, permanent)

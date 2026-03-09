@@ -52,22 +52,24 @@ class Battle(System):
         with Resources.Framebuffer.Binding(framebuffer, event.resolution):
             GL.glClearColor(0.05,0.05,0.05,1)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
-            with Resources.Shader.Binding(shader):
+            with Resources.Shader.Binding(shader) as render_prog:
                 model = np.eye(4, dtype=np.float32)*70
+                model[3, :3] = np.array([25,25,0], dtype=np.float32)
                 model[3][3] = 1.0
                 view = GLM.lookAt((10, -10, 10), (0, 0, 0), (0, 0, 1))
                 projection = GLM.ortho(-framebuffer.resolution[0]/2, framebuffer.resolution[0]/2, -framebuffer.resolution[1]/2, framebuffer.resolution[1]/2, -1000, 1000)
                 renderable.draw(
+                    render_prog,
                     model,
                     view,
                     projection,
                     [
                         mesh for mesh in renderable.meshes.keys() if mesh not in [
-                            "Icosphere", "Spellbook", "Spellbook_open", "Mage_Hat",
+                            "Icosphere", "Spellbook", "Spellbook_open"#, "Mage_Hat",
                             "Mage_Cape", "2H_Staff", "1H_Wand"
                         ]
                     ],
-                    [Resources.Renderable.BlendFactor(0, 0, 1, 1)]
+                    [Resources.Renderable.BlendFactor(0, 728, 1, 1)]
                 )
         GL.glNamedFramebufferReadBuffer(framebuffer.fbo, GL.GL_COLOR_ATTACHMENT0)
         GL.glBlitNamedFramebuffer(framebuffer.fbo, 0, 0, 0, fbo_res[0], fbo_res[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)

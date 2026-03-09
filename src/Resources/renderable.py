@@ -1,4 +1,5 @@
 from .resource import Resource
+from .shader import Shader
 from scipy.spatial.transform import Rotation
 from dataclasses import dataclass
 from enum import Enum
@@ -14,7 +15,7 @@ class Renderable(Resource):
             ("normal", (np.float32, 3)),
             ("uv", (np.float32, 2)),
             ("weights", (np.float32, 4)),
-            ("bones", (np.uint32, 4))
+            ("bones", (np.int32, 4))
         ]
     )
 
@@ -66,7 +67,7 @@ class Renderable(Resource):
         self.bones_ssbo = buffer_array[0]
         GL.glNamedBufferStorage(self.bones_ssbo, 64*len(inverses), None, GL.GL_DYNAMIC_STORAGE_BIT)
 
-    def draw(self, model: np.array, view: GLM.mat4x4, projection: GLM.mat4x4, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
+    def draw(self, program: Shader.Binding, model: np.array, view: GLM.mat4x4, projection: GLM.mat4x4, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
         '''
        # Do the interpolations
         num_bones = len(self.inverses)
@@ -107,7 +108,39 @@ class Renderable(Resource):
         final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
         '''
 
+        '''
+        num_bones = len(self.inverses)
+        bonez = self.frames[blend_factors[0].end_frame]
+        a_pos = bonez["pos"]
+        a_scale = bonez["scale"]
+        a_rvec =  Rotation.from_quat(bonez["quat"]).as_rotvec()
+        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
+        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
+        
+        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
+        blend_matrices[:, :3, 3] = a_pos
+        blend_matrices[:, 3, 3] = 1.0
+        #final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
+        '''
 
+        '''
+        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
+        blend_matrices[:, 3, :3] = a_pos
+        blend_matrices[:, 3, 3] = 1.0
+        #final_bones = np.matmul(self.inverses.reshape(-1, 4, 4), blend_matrices).swapaxes(1, 2)
+        '''
+        
+        '''
+        world_matrices = np.zeros_like(blend_matrices)
+        for i in range(num_bones):
+            world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else world_matrices[self.parent_ids[i]] @ blend_matrices[i]
+            #world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else blend_matrices[i]@ world_matrices[self.parent_ids[i]]
+        #final_bones = world_matrices
+        final_bones = world_matrices @ self.inverses.reshape(-1, 4, 4)
+        #final_bones = np.stack([np.eye(4, dtype=np.float32)]*num_bones)
+        '''
+
+        # Recompose matrices
         num_bones = len(self.inverses)
         bonez = self.frames[blend_factors[0].end_frame]
         a_pos = bonez["pos"]
@@ -115,32 +148,33 @@ class Renderable(Resource):
         a_rvec =  Rotation.from_quat(bonez["quat"]).as_rotvec()
         final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
 
-        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
+        blend_matrices = np.zeros_like(self.inverses)
         blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
+        #blend_matrices[:, :3, :3] = Rotation.from_quat(np.array([0.3826834, 0.0, 0.0, 0.9238795])).as_matrix()
+        #blend_matrices[:, :3, 3] = [0, 0, 0]#a_pos
         blend_matrices[:, :3, 3] = a_pos
         blend_matrices[:, 3, 3] = 1.0
-        final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
 
-        '''
-        world_matrices = np.zeros_like(blend_matrices)
+        # Walk hierarchy
+        pose_matrices = np.zeros_like(blend_matrices)
         for i in range(num_bones):
-            x = blend_matrices[i] @ self.inverses.reshape(-1, 4, 4)[i]
-            print(x)
-            world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else world_matrices[self.parent_ids[i]] @ blend_matrices[i]
-            #world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else blend_matrices[i] @ world_matrices[self.parent_ids[i]]
-        final_bones = np.matmul(world_matrices, self.inverses.reshape(-1, 4, 4))
-        '''
+            pose_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else pose_matrices[self.parent_ids[i]] @ blend_matrices[i]
+
+        # Ready skinning matrices
+        final_bones = pose_matrices @ self.inverses
         
+
         # Finally, draw it
         GL.glUniformMatrix4fv(Renderable.Bindings.MODEL, 1, False, model)
         GL.glUniformMatrix4fv(Renderable.Bindings.VIEW, 1, False, GLM.value_ptr(view))
         GL.glUniformMatrix4fv(Renderable.Bindings.PROJ, 1, False, GLM.value_ptr(projection))
         GL.glNamedBufferSubData(self.bones_ssbo, 0, final_bones.nbytes, final_bones.swapaxes(1, 2))
-        GL.glBindBufferBase(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.BONES, self.bones_ssbo)
+        #GL.glNamedBufferSubData(self.bones_ssbo, 0, final_bones.nbytes, final_bones)
+        program.bind(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.BONES, self.bones_ssbo)
         for mesh_name in mesh_list:
             mesh = self.meshes.get(mesh_name)
             if mesh:
-                GL.glBindBufferBase(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.VERTICES, mesh.ssbo)
+                program.bind(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.VERTICES, mesh.ssbo)
                 GL.glDrawArrays(GL.GL_TRIANGLES, 0, len(mesh.vertex_data))
             # TODO: warn if not
 
@@ -149,7 +183,7 @@ class Renderable(Resource):
         # load from file
         with Resource.file_system().openbin(fname, mode="rb") as file:
             num_bones = np.frombuffer(file.read(4), dtype=np.int32)[0]
-            inverses = np.frombuffer(file.read(Renderable.__inverse_dtype.itemsize*num_bones), dtype=Renderable.__inverse_dtype)
+            inverses = np.frombuffer(file.read(Renderable.__inverse_dtype.itemsize*num_bones), dtype=Renderable.__inverse_dtype).reshape(-1, 4, 4)
             parent_ids = np.frombuffer(file.read(num_bones*4), dtype=np.int32)
 
             num_frames = np.frombuffer(file.read(4), dtype=np.int32)[0]
