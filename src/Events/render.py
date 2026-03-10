@@ -1,8 +1,9 @@
 from .event import Event
 
 class Render(Event):
-    def __init__(self, dt: float, window, resolution: tuple[float, float], *args, **kwargs):
-        super().__init__(args, *args, **kwargs)
+    def __init__(self, dt: float, window, resolution: tuple[int, int], render_size: tuple[int, int], **kwargs):
+        super().__init__(**kwargs)
         self.dt = dt
         self.window = window
         self.resolution = resolution
+        self.render_size = render_size

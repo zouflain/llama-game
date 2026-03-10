@@ -54,7 +54,7 @@ class Framebuffer(Resource):
             texture_ids = GL.glGenTextures(color_channels) if color_channels > 1 else [GL.glGenTextures(color_channels)]
             for i in range(color_channels):
                 GL.glBindTexture(GL.GL_TEXTURE_2D, texture_ids[i])
-                GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA, resolution[0], resolution[1], 0, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE, None)
+                GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_RGBA32F, resolution[0], resolution[1], 0, GL.GL_RGBA, GL.GL_FLOAT, None)
                 GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
                 GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
                 GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0+i, GL.GL_TEXTURE_2D, texture_ids[i], 0)
@@ -65,7 +65,9 @@ class Framebuffer(Resource):
             GL.glBindTexture(GL.GL_TEXTURE_2D, depth)
             GL.glTexImage2D(GL.GL_TEXTURE_2D, 0, GL.GL_DEPTH_COMPONENT24, resolution[0], resolution[1], 0, GL.GL_DEPTH_COMPONENT, GL.GL_FLOAT, None)
             GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST)
-            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)     
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
+            GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
             GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT, GL.GL_TEXTURE_2D, depth, 0)
             textures[GL.GL_DEPTH_ATTACHMENT] = depth
 

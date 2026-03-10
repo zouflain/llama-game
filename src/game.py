@@ -46,12 +46,10 @@ class Game:
     def __init__(self):
         self.window = None
         self.gl_context = None
-        self.resources = dict()
         self.is_running = False
         self.screen_dimensions = (1280, 720)
-        self.target_resolution = (640, 360)
+        self.target_resolution = (1280, 720)
         self.blank_vao = None
-        self.next_entity = 0
         self.file_system = None
         self.packs = ["default"]
 
@@ -93,30 +91,49 @@ class Game:
         SDL.SDL_InitSubSystem(SDL.SDL_INIT_JOYSTICK)
 
         #schedule the Render pass
-        self.scheduled_tasks.append(Game.ScheduledTask(Events.Render, Game.Constants.RENDER_FPS, window=self.window, resolution=self.screen_dimensions))
+        self.scheduled_tasks.append(
+            Game.ScheduledTask(
+                Events.Render,
+                Game.Constants.RENDER_FPS,
+                window=self.window,
+                resolution=self.screen_dimensions,
+                render_size=self.target_resolution
+            )
+        )
 
 
     async def boot(self) -> None:
 
         self.initWindow()
-        Resources.init(["default"])
+        Resources.init(self.packs)
 
         self.is_running = True
 
         #####TEST CODE#####
-        #await Resources.Shader.generate(name="attacks", permanent=True, fname="attack_undefended.yaml")
         await Resources.FrameData.generate(name="attacks", permanent=True, fname="attack_undefended.yaml")
-        #await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.daex", ftype="glb")
-        #await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.glb", ftype="glb")
-        await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.Z3D", ftype="glb")
+        renderable = await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.Z3D", ftype="glb")
+
         print(Resources.FrameData["attacks"].data)
         await Systems.register(Systems.Battle())
-        player = Components.Character(self.next_entity)
-        player = Components.PartyMember(self.next_entity)
-        self.next_entity = self.next_entity + 1
+        await Systems.register(Systems.EntityController(150))
+        player_id = (await Systems.immediateEvent(Events.GenerateEntity())).entity
+        Components.Character(player_id)
+        Components.PartyMember(player_id)
+        Components.Combatant(
+            player_id,
+            mannequin="mage",
+            active_meshes=[
+                mesh for mesh in renderable.meshes.keys() if mesh not in [
+                    "Icosphere", "Spellbook", "Spellbook_open",# "Mage_Hat",
+                    "Mage_Cape", "2H_Staff", "1H_Wand"
+                ]
+            ]
+        )
 
         for char in Components.find([Components.Character, Components.PartyMember]):
             print(char)
+
+        print(Components.Combatant.getAll())
         #####END TEST CODE#####
 
         while self.is_running:

@@ -22,6 +22,7 @@ layout(std430, binding=1) buffer Frame{
 layout(location = 0) out vec2 uv_coords;
 layout(location = 1) out vec3 frag_normal;
 layout(location = 2) out vec3 frag_pos;
+layout(location = 3) out float frag_depth;
 
 void main(){
     uv_coords = vec2(
@@ -48,7 +49,11 @@ void main(){
     world_pos = model * transform  * vec4(v_pos, 1.0);
     world_norm = transform * vec4(frag_normal, 0);
 
+    vec4 clip_pos = projection * view * world_pos;
     frag_pos = vec3(world_pos);
     frag_normal = normalize(mat3(model)*vec3(world_norm));
-    gl_Position = projection * view * world_pos;
+    //frag_depth = pow(0.5 - (clip_pos.z/clip_pos.w) * 0.5, 8);
+    frag_depth = 0.5 - (clip_pos.z/clip_pos.w) * 0.5;
+    
+    gl_Position = clip_pos;
 }

@@ -72,7 +72,7 @@ class Shader(Resource):
                         item.program = compileProgram(*item.shaders)
                         await item.register()
             elif fname.endswith(".comp"):
-                with fs.open(fname) as comp_file:
+                with fs.open(f"shaders/{fname}") as comp_file:
                     item.shaders = [compileShader(comp_file.read(), GL.GL_COMPUTE_SHADER)]
                     item.program = compileProgram(*item.shaders)
                     await item.register()

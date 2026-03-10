@@ -1,7 +1,7 @@
 import yaml
 
 class Event:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         pass
 
     def __init_subclass__(cls, **kwargs):

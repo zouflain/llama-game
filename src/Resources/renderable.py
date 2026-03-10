@@ -37,7 +37,7 @@ class Renderable(Resource):
         VIEW = 1
         PROJ = 2
 
-    class Mesh:
+    class Mesh: #TODO: meshes MUST be independent of renderable!
         def __init__(self, vertex_data: np.array):
             self.vertex_data = vertex_data
 
@@ -68,8 +68,7 @@ class Renderable(Resource):
         GL.glNamedBufferStorage(self.bones_ssbo, 64*len(inverses), None, GL.GL_DYNAMIC_STORAGE_BIT)
 
     def draw(self, program: Shader.Binding, model: np.array, view: GLM.mat4x4, projection: GLM.mat4x4, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
-        '''
-       # Do the interpolations
+        # Do the interpolations
         num_bones = len(self.inverses)
         
         ## Accumulated bones
@@ -100,58 +99,16 @@ class Renderable(Resource):
 
         final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
 
-        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
-        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
-        blend_matrices[:, :3, 3] = a_pos
-        blend_matrices[:, 3, 3] = 1.0
-
-        final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
-        '''
-
-        '''
-        num_bones = len(self.inverses)
-        bonez = self.frames[blend_factors[0].end_frame]
-        a_pos = bonez["pos"]
-        a_scale = bonez["scale"]
-        a_rvec =  Rotation.from_quat(bonez["quat"]).as_rotvec()
-        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
-        blend_matrices = np.zeros((num_bones, 4, 4), dtype=np.float32)
-        
-        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
-        blend_matrices[:, :3, 3] = a_pos
-        blend_matrices[:, 3, 3] = 1.0
-        #final_bones = np.matmul(blend_matrices, self.inverses.reshape(-1, 4, 4))
-        '''
-
-        '''
-        blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
-        blend_matrices[:, 3, :3] = a_pos
-        blend_matrices[:, 3, 3] = 1.0
-        #final_bones = np.matmul(self.inverses.reshape(-1, 4, 4), blend_matrices).swapaxes(1, 2)
-        '''
-        
-        '''
-        world_matrices = np.zeros_like(blend_matrices)
-        for i in range(num_bones):
-            world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else world_matrices[self.parent_ids[i]] @ blend_matrices[i]
-            #world_matrices[i] = blend_matrices[i] if self.parent_ids[i] == -1 else blend_matrices[i]@ world_matrices[self.parent_ids[i]]
-        #final_bones = world_matrices
-        final_bones = world_matrices @ self.inverses.reshape(-1, 4, 4)
-        #final_bones = np.stack([np.eye(4, dtype=np.float32)]*num_bones)
-        '''
-
         # Recompose matrices
-        num_bones = len(self.inverses)
+        '''num_bones = len(self.inverses)
         bonez = self.frames[blend_factors[0].end_frame]
         a_pos = bonez["pos"]
         a_scale = bonez["scale"]
         a_rvec =  Rotation.from_quat(bonez["quat"]).as_rotvec()
-        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
+        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()'''
 
         blend_matrices = np.zeros_like(self.inverses)
         blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
-        #blend_matrices[:, :3, :3] = Rotation.from_quat(np.array([0.3826834, 0.0, 0.0, 0.9238795])).as_matrix()
-        #blend_matrices[:, :3, 3] = [0, 0, 0]#a_pos
         blend_matrices[:, :3, 3] = a_pos
         blend_matrices[:, 3, 3] = 1.0
 
@@ -169,7 +126,6 @@ class Renderable(Resource):
         GL.glUniformMatrix4fv(Renderable.Bindings.VIEW, 1, False, GLM.value_ptr(view))
         GL.glUniformMatrix4fv(Renderable.Bindings.PROJ, 1, False, GLM.value_ptr(projection))
         GL.glNamedBufferSubData(self.bones_ssbo, 0, final_bones.nbytes, final_bones.swapaxes(1, 2))
-        #GL.glNamedBufferSubData(self.bones_ssbo, 0, final_bones.nbytes, final_bones)
         program.bind(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.BONES, self.bones_ssbo)
         for mesh_name in mesh_list:
             mesh = self.meshes.get(mesh_name)

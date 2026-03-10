@@ -29,11 +29,11 @@ class Component:
             del Component.__registry[cls][eid]
     
     @classmethod
-    def getAll(cls) -> list[Component]:
+    def getAll(cls) -> list[tuple[int, Component]]:
         return [(eid, entry) for eid, entry in Component.__registry[cls].items()]
     
     @staticmethod
-    def matches(has: list, exclude: list = None) -> list[Component]:
+    def matches(has: list, exclude: list = None) -> list[int]:
         first_cls = has.pop()
         match_set = [eid for eid in Component.__registry[first_cls].keys()]
             

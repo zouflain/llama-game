@@ -19,7 +19,7 @@ class System:
         async def execute(self, event: Event) -> bool:
             return await self.callback(event=event, **self.kwargs)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, **kwargs):
         self.listeners = defaultdict(list)
 
         for name in dir(self):

@@ -1,0 +1,63 @@
+#version 450
+
+const uint MAX_SIZE = 32;
+const float PI = 3.1415926535;
+const float sobel_s = 1.0/16.0;
+const float sobel_w[3][3] = float[3][3](
+    float[3](1, 0, -1),
+    float[3](2, 0, -2),
+    float[3](1, 0, -1)
+);
+const vec4 border_color = vec4(1.0, 0, 0, 1.0);
+const vec4 edge_color = vec4(1.0, 0, 0, 1.0);
+
+
+layout(rgba32f, binding = 0) readonly uniform image2D color_layer;
+layout(rgba32f, binding = 1) readonly uniform image2D world_layer;
+layout(rgba32f, binding = 2) readonly uniform image2D depth_layer;
+layout(rgba32f, binding = 3) readonly uniform image2D normals_layer;
+
+layout(location=0) uniform float normal_threshold;
+layout(location=1) uniform float depth_threshold;
+
+
+layout(rgba32f, binding = 4) writeonly uniform image2D merged_layer;
+
+layout(local_size_x = MAX_SIZE, local_size_y = MAX_SIZE) in;
+
+void main(){
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(imageSize(color_layer));
+
+    //Early abort
+    if(pos.x >= size.x-1 || pos.y >= size.y-1 || pos.x == 0 || pos.y == 0){
+        return;
+    }
+
+
+    vec4 pixel = imageLoad(color_layer, pos);
+    vec4 border = vec4(1.0, 0.0, 0.0, 0.0);
+    vec4 edge = vec4(0.0, 1.0, 1.0, 0.0);
+    vec2 depth_sum = vec2(0);
+    float min_delta = 1;
+    vec3 local_normal = normalize(imageLoad(normals_layer, pos).xyz);
+    for(int i=0;i<3;i++){
+        for(int j=0;j<3;j++){
+            //Outline
+            ivec2 sample_pos = pos+ivec2(i-1,j-1);
+            float depth = imageLoad(depth_layer, sample_pos).x;
+            depth_sum.x += sobel_s*sobel_w[j][i]*depth;
+            depth_sum.y += sobel_s*sobel_w[i][j]*depth;//transpose for vertical
+
+            //Edge
+            vec3 normal = imageLoad(normals_layer, sample_pos).xyz;
+            float delta = dot(local_normal, normalize(normal));
+            min_delta = min(min_delta, delta);
+        }
+    }
+    float depth_weighted = length(depth_sum);
+    border.w = mix(0.0, 1.0, depth_weighted > 0.025);
+    edge.w = mix(0.0, 1.0, min_delta < 0.707);
+
+    imageStore(merged_layer, pos, mix(mix(pixel, edge, edge.w), border, border.w));
+}
