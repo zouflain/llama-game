@@ -6,3 +6,4 @@ fs
 setuptools<81
 pyglm
 scipy
+cbor2

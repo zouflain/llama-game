@@ -3,6 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import wraps
 from typing import Callable, Iterator, Type
+from enum import Enum
 from Events import Event
 
 class System:
@@ -18,6 +19,12 @@ class System:
 
         async def execute(self, event: Event) -> bool:
             return await self.callback(event=event, **self.kwargs)
+
+    class Priority(int, Enum):
+        HIGHEST = 100000
+        DEFAULT = 10000
+        LOWEST = 0
+
 
     def __init__(self, **kwargs):
         self.listeners = defaultdict(list)
@@ -73,10 +80,10 @@ class System:
             yield System.__pending_events.pop()
 
     @staticmethod
-    async def register(system: System) -> bool:
-        result = True
+    async def register(system: System, **kwargs) -> bool:
+        result = False
         if system not in System.__active_systems:
-            result = await system.boot()
+            result = await system.boot(**kwargs)
             if result:
                 System.__active_systems.append(system)
                 for event_type in system.listeners.keys():
@@ -90,10 +97,10 @@ class System:
         for event_type in system.listeners.keys():
             System.__recache(event_type)
 
-    async def boot(self) -> bool:
+    async def boot(self, **kwargs) -> bool:
         return True
 
-    async def unboot(self) -> bool: pass
+    async def unboot(self) -> None: pass
 
 
 # Syntatic Sugar

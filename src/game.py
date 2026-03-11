@@ -114,7 +114,7 @@ class Game:
         renderable = await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.Z3D", ftype="glb")
 
         print(Resources.FrameData["attacks"].data)
-        await Systems.register(Systems.Battle())
+        await Systems.register(Systems.Battle(), render_size=self.target_resolution)
         await Systems.register(Systems.EntityController(150))
         player_id = (await Systems.immediateEvent(Events.GenerateEntity())).entity
         Components.Character(player_id)

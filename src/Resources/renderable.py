@@ -36,6 +36,7 @@ class Renderable(Resource):
         MODEL = 0
         VIEW = 1
         PROJ = 2
+        
 
     class Mesh: #TODO: meshes MUST be independent of renderable!
         def __init__(self, vertex_data: np.array):
@@ -100,13 +101,6 @@ class Renderable(Resource):
         final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()
 
         # Recompose matrices
-        '''num_bones = len(self.inverses)
-        bonez = self.frames[blend_factors[0].end_frame]
-        a_pos = bonez["pos"]
-        a_scale = bonez["scale"]
-        a_rvec =  Rotation.from_quat(bonez["quat"]).as_rotvec()
-        final_rotations = Rotation.from_rotvec(a_rvec).as_matrix()'''
-
         blend_matrices = np.zeros_like(self.inverses)
         blend_matrices[:, :3, :3] = final_rotations * a_scale[:, np.newaxis, :]
         blend_matrices[:, :3, 3] = a_pos
@@ -119,7 +113,6 @@ class Renderable(Resource):
 
         # Ready skinning matrices
         final_bones = pose_matrices @ self.inverses
-        
 
         # Finally, draw it
         GL.glUniformMatrix4fv(Renderable.Bindings.MODEL, 1, False, model)
