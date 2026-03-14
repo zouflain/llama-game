@@ -112,6 +112,13 @@ class Game:
         #####TEST CODE#####
         await Resources.FrameData.generate(name="attacks", permanent=True, fname="attack_undefended.yaml")
         renderable = await Resources.Renderable.generate(name="mage", permanent=True, fname="models/Mage.Z3D", ftype="glb")
+        tex = await Resources.GlyphSet.generate(name="font", permanent=True, file_list=["fonts/atlas2.png"])
+        '''arr = tex.getArray(
+            "This is a test\nThis is a really long line that might be a problem.\nThis isn't.\n123456789012345#ffacbc6789012345x\n1234567890##123456789*0*12345x\n1231456780123456789012345\n",
+            1,
+            (25, 5),
+            (0,0,0)
+        )'''
 
         print(Resources.FrameData["attacks"].data)
         await Systems.register(Systems.Battle(), render_size=self.target_resolution)

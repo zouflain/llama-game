@@ -7,5 +7,6 @@
         <pallettes>res/pallettes</pallettes>
         <framedata>res/framedata</framedata>
         <fmod>res/fmod</fmod>
+        <fonts>res/fonts</fonts>
     </paths>
 </config>

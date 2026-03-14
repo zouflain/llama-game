@@ -1,0 +1,54 @@
+#version 450
+
+const uint MAX_SIZE = 32;
+const uint MAX_INDEX = 500;
+
+layout(binding = 0) uniform sampler2D glyph_image;
+layout(rgba32f, binding = 1) uniform image2D source_image;
+
+
+layout(location=0) uniform ivec2 start_offset;
+layout(location=1) uniform ivec2 box_size; //Size of textbox
+layout(location=2) uniform int line_length; //Number of glyphs per line
+
+
+struct Glyph{
+    int glyph;
+    uint flags;
+    float color[3];
+};
+layout(std430, binding=0) buffer Glyphs{
+    Glyph glyph[];
+};
+
+layout(local_size_x = MAX_SIZE, local_size_y = MAX_SIZE) in;
+
+void main(){
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 screen_pos = pos+start_offset;
+    ivec2 size = imageSize(source_image).xy;
+    vec4 color_out = vec4(0,0,0,0);
+    vec4 color_source = imageLoad(source_image, screen_pos);
+
+    //Abort if off screen our out of box boundaries
+    if(screen_pos.x >= size.x || screen_pos.y >= size.y || pos.x >= box_size.x || pos.y >= box_size.y){
+        return;
+    }
+
+    float glyph_size = float(box_size.x)/line_length;
+    int index = int((box_size.y-pos.y)/glyph_size)*line_length + int(pos.x/glyph_size);
+
+    //Abort if index out of bounds
+    if(index >= MAX_INDEX){
+        return;
+    }
+
+    vec2 inner_offset = vec2(
+        ((glyph[index].glyph % 16)+mod(pos.x, glyph_size)/glyph_size)/16.0,
+        ((glyph[index].glyph / 16)+1-mod(pos.y, glyph_size)/glyph_size)/16.0 
+    );
+    float glyph_alpha = texture(glyph_image, inner_offset).x;
+    color_out = vec4(glyph[index].color[0], glyph[index].color[1], glyph[index].color[2], glyph_alpha);
+
+    imageStore(source_image, screen_pos, mix(color_source, color_out, color_out.w));
+}

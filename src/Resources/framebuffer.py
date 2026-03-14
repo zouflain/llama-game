@@ -5,18 +5,18 @@ import OpenGL.GL as GL
 class Framebuffer(Resource):
     class Binding:
         __fbo: int = 0
-        __resolution: tuple[float, float] = None
+        __resolution: tuple[int, int] = None
 
-        def __init__(self, framebuffer: Framebuffer, fallback: tuple[float, float] = None):
-            self.prev_resolution = Framebuffer.Binding.__resolution
-            self.prev_fbo = Framebuffer.Binding.__fbo
-            self.fbo = framebuffer.fbo
-            self.resolution = framebuffer.resolution
-            self.fallback = fallback
-            Framebuffer.Binding.__fbo = self.fbo
-            Framebuffer.Binding.__resolution = self.resolution
+        def __init__(self, framebuffer: Framebuffer, fallback: tuple[int, int] = None):
+            self.prev_resolution: tuple[int, int] = Framebuffer.Binding.__resolution
+            self.prev_fbo: int = Framebuffer.Binding.__fbo
+            self.fbo: int = framebuffer.fbo
+            self.resolution: tuple[int, int] = framebuffer.resolution
+            self.fallback: tuple[int, int] = fallback
 
         def __enter__(self) -> Framebuffer.Binding:
+            Framebuffer.Binding.__fbo = self.fbo
+            Framebuffer.Binding.__resolution = self.resolution
             GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo)
             GL.glViewport(0, 0, self.resolution[0], self.resolution[1])
             return self
@@ -35,9 +35,9 @@ class Framebuffer(Resource):
 
     def __init__(self, name: str, permanent: bool, resolution: tuple[int, int], fbo: int, textures: dict):
         super().__init__(name, permanent)
-        self.fbo = fbo
-        self.textures = textures
-        self.resolution = resolution
+        self.fbo: int = fbo
+        self.textures: dict = textures
+        self.resolution: tuple[int, int] = resolution
 
     @staticmethod
     async def allocate(name: str, permanent: bool, resolution: tuple[int, int], color_channels: int) -> Framebuffer:
@@ -92,7 +92,7 @@ class Framebuffer(Resource):
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         GL.glViewport(0, 0, window_resolution[0], window_resolution[1])
 
-    async def deallocate(self):
+    async def deallocate(self) -> None:
         GL.glDeleteFramebuffers(1, [self.fbo])
         if self.textures:
             GL.glDeleteTextures(len(self.textures), list(self.textures.values()))

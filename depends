@@ -7,3 +7,4 @@ setuptools<81
 pyglm
 scipy
 cbor2
+pillow

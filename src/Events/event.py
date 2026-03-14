@@ -2,7 +2,6 @@ from enum import Enum
 import yaml
 
 
-
 class Event:
     class Result(int, Enum):
         CONTINUE = 1

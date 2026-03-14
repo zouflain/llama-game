@@ -32,8 +32,10 @@ class Component:
         return Component.__registry[cls].get(eid)
 
     def assign(self, eid: int) -> None:
-        Component.__registry[type(self)][eid] = self
-        self._eid = eid
+        if eid is not None:
+            Component.__registry[type(self)][eid] = self
+            self._eid = eid
+        # TODO: good place for a log warning
     
     def serialize(self) -> bytes:
         return cbor2.dumps(self, default=Component.serializationEncoder)
@@ -45,7 +47,10 @@ class Component:
     @classmethod
     def remove(cls, eid: int) -> None:
         if cls in Component.__registry:
-            del Component.__registry[cls][eid]
+            if eid in Component.__registry[cls][eid]:
+                Component.__registry[cls][eid]._eid = None
+                del Component.__registry[cls][eid]
+            # TODO: another place for a good warning
     
     @classmethod
     def getAll(cls) -> list[tuple[int, Component]]:
@@ -53,31 +58,19 @@ class Component:
     
     @staticmethod
     def matches(has: list, exclude: list = None) -> list[int]:
-        first_cls = has.pop()
-        match_set = [eid for eid in Component.__registry[first_cls].keys()]
+        matches = []
+        if has:
+            has_sets = [set(Component.__registry[cls].keys()) for cls in has]
+            exclude_sets = [set(Component.__registry[cls].keys()) for cls in exclude or []]
+
+            match_set = set.intersection(*has_sets)
+            if exclude_sets:
+                match_set -= set.union(*exclude_sets)
+
+            matches = list(match_set)
             
-        for cls in has:
-            new_set = match_set.copy()
-            for eid in match_set:
-                if eid not in Component.__registry[cls]:
-                    new_set.remove(eid)
-            match_set = new_set
+        return matches
 
-            if len(match_set) == 0:
-                break
-
-        if len(match_set) > 0 and exclude:
-            for cls in exclude:
-                new_set = match_set.copy()
-                for eid in match_set:
-                    if eid in Component.__registry[cls]:
-                        new_set.remove(eid)
-                match_set=new_set
-            
-                if len(match_set) == 0:
-                    break
-
-        return match_set
     
     @staticmethod
     def assignMany(eid: int, components: list[Component]) -> None:

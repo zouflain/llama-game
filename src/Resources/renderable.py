@@ -9,7 +9,7 @@ import glm as GLM
 
 
 class Renderable(Resource):
-    __vertex_dtype = np.dtype(
+    __vertex_dtype: np.dtype = np.dtype(
         [
             ("pos", (np.float32, 3)),
             ("normal", (np.float32, 3)),
@@ -18,10 +18,8 @@ class Renderable(Resource):
             ("bones", (np.int32, 4))
         ]
     )
-
-    __inverse_dtype = np.dtype((np.float32, 16))
-
-    __bone_dtype = np.dtype(
+    __inverse_dtype: np.dtype = np.dtype((np.float32, 16))
+    __bone_dtype: np.dtype = np.dtype(
         [
             ("pos", (np.float32, 3)),
             ("quat", (np.float32, 4)), # xyzw
@@ -36,15 +34,15 @@ class Renderable(Resource):
         MODEL = 0
         VIEW = 1
         PROJ = 2
-        
+
 
     class Mesh: #TODO: meshes MUST be independent of renderable!
         def __init__(self, vertex_data: np.array):
-            self.vertex_data = vertex_data
+            self.vertex_data: np_array = vertex_data
 
             buffer_array = (GL.GLuint * 1)()
             GL.glCreateBuffers(1, buffer_array)
-            self.ssbo = buffer_array[0]
+            self.ssbo: int = buffer_array[0]
             GL.glNamedBufferStorage(self.ssbo, self.vertex_data.nbytes, self.vertex_data, 0)
 
 
@@ -56,17 +54,13 @@ class Renderable(Resource):
         blend_coefficient: float
 
 
-    def __init__(self, name: str, permanent: bool, meshes: dict, inverses: np.array, frames: np.array, parent_ids: np.array):
+    def __init__(self, name: str, permanent: bool, meshes: dict, inverses: np.array, frames: np.array, parent_ids: np.array, bones_ssbo: int):
         super().__init__(name, permanent)
-        self.meshes = meshes
-        self.inverses = inverses
-        self.frames = frames
-        self.parent_ids = parent_ids
-
-        buffer_array = (GL.GLuint * 1)()
-        GL.glCreateBuffers(1, buffer_array)
-        self.bones_ssbo = buffer_array[0]
-        GL.glNamedBufferStorage(self.bones_ssbo, 64*len(inverses), None, GL.GL_DYNAMIC_STORAGE_BIT)
+        self.meshes: dict = meshes
+        self.inverses: np.array = inverses
+        self.frames: np.array = frames
+        self.parent_ids: np.array = parent_ids
+        self.bones_ssbo: int = bones_ssbo
 
     def draw(self, program: Shader.Binding, model: np.array, view: GLM.mat4x4, projection: GLM.mat4x4, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
         # Do the interpolations
@@ -147,7 +141,12 @@ class Renderable(Resource):
                 vertices = np.frombuffer(file.read(Renderable.__vertex_dtype.itemsize*num_verts), dtype=Renderable.__vertex_dtype)
                 meshes[mesh_name] = Renderable.Mesh(vertices)
 
-        item = Renderable(name, permanent, meshes, inverses, frames, parent_ids)
+        buffer_array = (GL.GLuint * 1)()
+        GL.glCreateBuffers(1, buffer_array)
+        bones_ssbo = buffer_array[0]
+        GL.glNamedBufferStorage(bones_ssbo, 64*len(inverses), None, GL.GL_DYNAMIC_STORAGE_BIT)
+
+        item = Renderable(name, permanent, meshes, inverses, frames, parent_ids, bones_ssbo)
         await item.register()
         return item
 
@@ -160,5 +159,4 @@ class Renderable(Resource):
         self.meshes = {}
         self.inverses = np.array([], dtype=Renderable.__inverse_dtype)
         self.frames = np.array([], dtype=Renderable.__bone_dtype)
-        self.inverse_ssbo = 0
-        self.frames_ssbo = 0
+        self.bones_ssbo = 0

@@ -6,6 +6,7 @@ from typing import Callable, Iterator, Type
 from enum import Enum
 from Events import Event
 
+
 class System:
     __active_systems: list[System] = []
     __pending_events: list[Event] = []

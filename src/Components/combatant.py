@@ -9,4 +9,6 @@ class Combatant(Component):
         self.pos: np.ndarray[tuple[float, float, float]] = pos
         self.mannequin: str = mannequin
         self.active_meshes: list[str] = active_meshes or []
+        self.target: int = None
+        self.action = None
 

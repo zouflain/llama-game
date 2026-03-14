@@ -43,6 +43,8 @@ class Battle(System):
         self.framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, render_size, 5)
         self.render_shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert")
         self.sobel_shader = await Resources.Shader.generate(name="outlines", permanent=True, fname="outlines.comp")
+        
+        self.glyph_shader = await Resources.Shader.generate(name="glyphs", permanent=True, fname="text.comp")
         return True
 
     @System.on(Events.Render, System.Priority.LOWEST)
@@ -64,8 +66,7 @@ class Battle(System):
             GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
             with Resources.Shader.Binding(self.render_shader) as render_prog:
                 for eid, combatant in Components.Combatant.getAll():
-                    renderable = Resources.Renderable[combatant.mannequin]
-                    renderable.draw(render_prog, model, view, projection, combatant.active_meshes, [Resources.Renderable.BlendFactor(2, 2, 0.5, 1)])
+                    Resources.Renderable[combatant.mannequin].draw(render_prog, model, view, projection, combatant.active_meshes, [Resources.Renderable.BlendFactor(2, 2, 0.5, 1)])
 
             with Resources.Shader.Binding(self.sobel_shader):
                 GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -77,6 +78,15 @@ class Battle(System):
                 GL.glBindImageTexture(Battle.Constants.OUTPUT, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], 0, GL.GL_FALSE, 0, GL.GL_WRITE_ONLY, GL.GL_RGBA32F)
                 GL.glDispatchCompute(int(self.framebuffer.resolution[0]/32)+1, int(self.framebuffer.resolution[1]/32)+1, 1, 0)
                 GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+
+            with Resources.Shader.Binding(self.glyph_shader) as glyph_program:
+                Resources.GlyphSet["font"].draw(
+                    #glyph_program, event.resolution, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], "Hello world!\n#ff0000TEST!", (0, 0), 32, (1184,96), (0,1,1)
+                    glyph_program, event.resolution, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4],
+                    #"ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789'\"+_)(&^%$@!`?.><\\/)",
+                    "You there! Out of the WAY!\nKeep standin' there and you'll\nget knocked into the ocean!",
+                    (0, 0), 32, (1184,96), (0,1,1)
+                )
 
         GL.glNamedFramebufferReadBuffer(self.framebuffer.fbo, GL.GL_COLOR_ATTACHMENT4)
         GL.glBlitNamedFramebuffer(self.framebuffer.fbo, 0, 0, 0, event.render_size[0], event.render_size[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
