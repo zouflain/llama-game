@@ -118,12 +118,19 @@ class Battle(System):
             delta_dir = np.nan_to_num(delta_pos / delta_norms[:, :, np.newaxis])
         dots = np.einsum("aik,ajk->aij", vectors, delta_dir)
 
+        interests = np.array([[1 for other, _ in combatants] for source, __ in combatants])
+        interests_map = np.einsum("aij,aj->ai", dots, interests)
+        #weights = interests / (delta_norms + 1e-5)
+        #interests_map = np.einsum("aij,aj->ai", dots, weights)
+        preferred_indices = np.argmax(interests_map, axis=1)
+        chosen_vectors = vectors[np.arange(len(combatants)), preferred_indices]
 
-        for eid, combatant in combatants:
+        for i,(eid, combatant) in enumerate(combatants):
             combatant.facing += 2
             #combatant.frame += 1
             combatant.frame = 0
             combatant.animations[0]["end_frame"] = combatant.frame
+            combatant.pos[:2] += chosen_vectors[i]*2
         return False
 
     @System.on(Events.FromSDL, System.Priority.DEFAULT+10)

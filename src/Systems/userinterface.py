@@ -47,12 +47,27 @@ class UserInterface(System):
             if path not in self._open_files:
                 with Resources.file_system().open(self.getPath(path), "rb") as file:
                     data = file.read()
-                    buffer = self._ffi.new("char[]", data) # TODO: plug memory leak!
+                    buffer = self._ffi.new("char[]", data)
+                    handle = self._ffi.new_handle(path)
+                    callback = self._ffi.callback("void(void*, void*)")(self.onDestroy)
                     self._open_files[path] = {
                         "buffer": buffer,
-                        "ulBuffer": self._lib.ulCreateBuffer(buffer, len(buffer), self._ffi.NULL, self._ffi.NULL)
+                        "handle": handle,
+                        "callback": callback,
+                        "ulBuffer": self._lib.ulCreateBuffer(
+                            buffer,
+                            len(buffer),
+                            handle,
+                            callback
+                        )
                     }
             return self._open_files[path]["ulBuffer"]
+
+        def onDestroy(self, user_data, data):
+            if user_data is not self._ffi.NULL:
+                path = self._ffi.from_handle(user_data)
+                if path in self._open_files:
+                    del self._open_files[path]
 
 
     class FontWrapper:
@@ -68,19 +83,49 @@ class UserInterface(System):
             self._struct.get_fallback_font = self._pins[0]
             self._struct.get_fallback_font_for_characters = self._pins[1]
             self._struct.load = self._pins[2]
+            self._open_files = {}
         
         @property
         def struct(self):
             return self._struct
 
+        def getPath(self, path):
+            return self._ffi.string(self._lib.ulStringGetData(path)).decode("utf-8")
+
         def getFallback(self):
-            return self._ffi.NULL
+            return self._lib.ulCreateString(self._ffi.new("char[]", b"fallback"))
 
         def getFallbackForChars(self, characters, weight, italic):
-            return self._ffi.NULL
+            return self._lib.ulCreateString(self._ffi.new("char[]", b"fallback"))
 
         def load(self, family, weight, italic):
-            return self._ffi.NULL
+            path = self.getPath(family)
+            try:
+                if not path in self._open_files:
+                    with Resources.file_system().open(f"fonts/{path}.ttf", "rb") as file:
+                        data = file.read()
+                        buffer = self._ffi.new("char[]", data)
+                        handle = self._ffi.new_handle(path)
+                        callback = self._ffi.callback("void(void*, void*)")(self.onDestroy) # TODO: investigate EXACTLY when this will callback. Is it done with the font_file by then?
+                        ul_buffer = self._lib.ulCreateBuffer(buffer, len(buffer), handle, callback)
+                        font_file = self._lib.ulFontFileCreateFromBuffer(ul_buffer)
+                        self._open_files[path] = {
+                            "buffer": buffer,
+                            "handle": handle,
+                            "callback": callback,
+                            "ul_buffer": ul_buffer,
+                            "font_file": font_file
+                        }
+                return self._open_files[path]["font_file"]
+            except Exception as err:
+                # TODO: properly log this
+                return self._ffi.NULL
+
+        def onDestroy(self, user_data, data):
+            if user_data != self._ffi.NULL:
+                handle = self._ffi.from_handle(user_data)
+                if handle in self._open_files:
+                    del self._open_files[handle]
 
 
     def __init__(self, screen_dimensions: tuple[int, int], **kwargs):
@@ -91,14 +136,19 @@ class UserInterface(System):
         if not self._ffi:
             self._ffi = FFI()
             self._ffi.cdef("""
+                // Strings
                 typedef void* ULString;
+                ULString ulCreateString(const char* str);
 
+                void ulDestroyString(ULString* string);
                 const char* ulStringGetData(ULString str);
 
+                // Config
                 typedef void* ULConfig;
+
                 ULConfig ulCreateConfig();
 
-
+                // File System
                 typedef struct {
                     bool (*file_exists) (ULString path);
                     void* (*get_file_mime_type) (ULString path);
@@ -107,20 +157,26 @@ class UserInterface(System):
                 }ULFileSystem;
                 void ulPlatformSetFileSystem(ULFileSystem file_system);
 
+                // Renderer
+                typedef void* ULRenderer;
 
+                ULRenderer ulCreateRenderer(ULConfig config);
+
+                //Buffer
+                typedef void* ULBuffer;
+
+                ULBuffer ulCreateBuffer(void* data, size_t size, void* user_data, void* destruction_callback);
+
+                //Fonts
                 typedef struct {
                     void* (*get_fallback_font)();
                     void* (*get_fallback_font_for_characters)(ULString characters, int weight, bool italic);
                     void* (*load)(ULString family, int weight, bool italic);
                 }ULFontLoader;
+                typedef void* ULFontFile;
+
+                ULFontFile ulFontFileCreateFromBuffer(ULBuffer buffer);
                 void ulPlatformSetFontLoader(ULFontLoader font_loader);
-
-                typedef void* ULRenderer;
-                ULRenderer ulCreateRenderer(ULConfig config);
-
-                //Buffer
-                typedef void* ULBuffer;
-                ULBuffer ulCreateBuffer(void* data, size_t size, void* destruction_callback, void* user_data);
 
                 //view
                 typedef void* ULViewConfig;
@@ -157,8 +213,10 @@ class UserInterface(System):
     async def boot(self) -> bool:
         return True
 
-    @System.on(Events.Render, System.Priority.LOWEST)
-    async def onRenderStep(self, event: Events.Render) -> bool:
+    @System.on(Events.Logic, System.Priority.LOWEST)
+    async def onLogicStep(self, event: Events.Logic) -> bool:
+        self._lib.ulUpdate(self.renderer)
+        self._lib.ulRender(self.renderer)
         return False
 
     @System.on(Events.Render, System.Priority.LOWEST)

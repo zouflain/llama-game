@@ -128,7 +128,7 @@ class Game:
         Components.PartyMember(player_id)
         p_combatant = Components.Combatant(
             player_id,
-            pos=[20., 20., 0.],
+            pos=[100., 100., 0.],
             mannequin="mage",
             active_meshes=[
                 mesh for mesh in renderable.meshes.keys() if mesh not in [
