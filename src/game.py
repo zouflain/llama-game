@@ -30,7 +30,7 @@ import Components
 class Game:
     class Constants(int, Enum):
         RENDER_FPS = 200
-        LOGIC_FPS = 10
+        LOGIC_FPS = 50
         VSYNC_ON = 0
         MAX_LOGIC_TIME = 4
 
@@ -50,7 +50,6 @@ class Game:
         self.screen_dimensions = (1280, 720)
         self.target_resolution = (1280, 720)
         self.blank_vao = None
-        self.file_system = None
         self.packs = ["default"]
 
         self.scheduled_tasks = [
@@ -123,11 +122,27 @@ class Game:
         print(Resources.FrameData["attacks"].data)
         await Systems.register(Systems.Battle(), render_size=self.target_resolution)
         await Systems.register(Systems.EntityController(150))
+        await Systems.register(Systems.UserInterface(self.screen_dimensions))
         player_id = (await Systems.immediateEvent(Events.GenerateEntity())).entity
         Components.Character(player_id)
         Components.PartyMember(player_id)
-        Components.Combatant(
+        p_combatant = Components.Combatant(
             player_id,
+            pos=[20., 20., 0.],
+            mannequin="mage",
+            active_meshes=[
+                mesh for mesh in renderable.meshes.keys() if mesh not in [
+                    "Icosphere", "Spellbook", "Spellbook_open",# "Mage_Hat",
+                    "Mage_Cape", "2H_Staff", "1H_Wand"
+                ]
+            ]
+        )
+        #p_combatant.pos[0] = 10
+
+
+        enemy_id = (await Systems.immediateEvent(Events.GenerateEntity())).entity
+        Components.Combatant(
+            enemy_id,
             mannequin="mage",
             active_meshes=[
                 mesh for mesh in renderable.meshes.keys() if mesh not in [

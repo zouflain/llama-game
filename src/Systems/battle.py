@@ -4,6 +4,7 @@ import OpenGL.GL as GL
 import glm as GLM
 import sdl2 as SDL
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 from .system import System
 import Events, Components, Resources
@@ -53,9 +54,6 @@ class Battle(System):
         GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
 
         #### TEST CODE ####
-        model = np.eye(4, dtype=np.float32)*70
-        model[3, :3] = np.array([25,25,0], dtype=np.float32)
-        model[3][3] = 1.0
         view = GLM.lookAt((100, -100, 100), (0, 0, 0), (0, 0, 1))
         projection = GLM.ortho(-self.framebuffer.resolution[0]/2, self.framebuffer.resolution[0]/2, -self.framebuffer.resolution[1]/2, self.framebuffer.resolution[1]/2, 0, 1000)
         #### END TEST CODE ####
@@ -65,8 +63,14 @@ class Battle(System):
             GL.glClearColor(0.05,0.05,0.05,1)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
             with Resources.Shader.Binding(self.render_shader) as render_prog:
+                GL.glUniformMatrix4fv(Resources.Renderable.Bindings.VIEW, 1, False, GLM.value_ptr(view))
+                GL.glUniformMatrix4fv(Resources.Renderable.Bindings.PROJ, 1, False, GLM.value_ptr(projection))
                 for eid, combatant in Components.Combatant.getAll():
-                    Resources.Renderable[combatant.mannequin].draw(render_prog, model, view, projection, combatant.active_meshes, [Resources.Renderable.BlendFactor(2, 2, 0.5, 1)])
+                    model = np.eye(4)
+                    model[:3, :3] = Rotation.from_euler('z', combatant.facing, degrees=True).as_matrix() * np.array([combatant.scale]*3)[np.newaxis, :]#TODO add scale here
+                    model[3, :3] = combatant.pos
+                    model[3, 3] = 1.0
+                    Resources.Renderable[combatant.mannequin].draw(render_prog, model, combatant.active_meshes, [Resources.Renderable.BlendFactor(**anim) for anim in combatant.animations])
 
             with Resources.Shader.Binding(self.sobel_shader):
                 GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
@@ -79,6 +83,7 @@ class Battle(System):
                 GL.glDispatchCompute(int(self.framebuffer.resolution[0]/32)+1, int(self.framebuffer.resolution[1]/32)+1, 1, 0)
                 GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
+            '''
             with Resources.Shader.Binding(self.glyph_shader) as glyph_program:
                 Resources.GlyphSet["font"].draw(
                     #glyph_program, event.resolution, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], "Hello world!\n#ff0000TEST!", (0, 0), 32, (1184,96), (0,1,1)
@@ -87,6 +92,7 @@ class Battle(System):
                     "You there! Out of the WAY!\nKeep standin' there and you'll\nget knocked into the ocean!",
                     (0, 0), 32, (1184,96), (0,1,1)
                 )
+            '''
 
         GL.glNamedFramebufferReadBuffer(self.framebuffer.fbo, GL.GL_COLOR_ATTACHMENT4)
         GL.glBlitNamedFramebuffer(self.framebuffer.fbo, 0, 0, 0, event.render_size[0], event.render_size[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
@@ -98,17 +104,26 @@ class Battle(System):
 
     @System.on(Events.Logic, System.Priority.DEFAULT)
     async def onLogicStep(self, event: Events.Logic) -> bool:
-        combatant_ids = Components.find([Combatant, BattleAnimator])
-        action_occuring = None
-        for combatant_id in combatant_ids:
-            combatant = Components.Combatant[combatant_id]
-            action_occuring = combatant.actions["performing"]
-            if action_occuring:
-                break
-        
-        if action_occuring:
-            pass
+        combatants = Components.Combatant.getAll()
 
+        angles = np.linspace(0, 2*np.pi, 16, endpoint=False)
+        vectors = np.empty((len(combatants), 16, 2), dtype=np.float32)
+        vectors[:, :, 0] = np.cos(angles)
+        vectors[:, :, 1] = np.sin(angles)
+
+        pos = np.array([combatant.pos[:2] for eid, combatant in combatants])
+        delta_pos = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
+        delta_norms = np.linalg.norm(delta_pos, axis=2)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            delta_dir = np.nan_to_num(delta_pos / delta_norms[:, :, np.newaxis])
+        dots = np.einsum("aik,ajk->aij", vectors, delta_dir)
+
+
+        for eid, combatant in combatants:
+            combatant.facing += 2
+            #combatant.frame += 1
+            combatant.frame = 0
+            combatant.animations[0]["end_frame"] = combatant.frame
         return False
 
     @System.on(Events.FromSDL, System.Priority.DEFAULT+10)

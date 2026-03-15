@@ -62,7 +62,7 @@ class Renderable(Resource):
         self.parent_ids: np.array = parent_ids
         self.bones_ssbo: int = bones_ssbo
 
-    def draw(self, program: Shader.Binding, model: np.array, view: GLM.mat4x4, projection: GLM.mat4x4, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
+    def draw(self, program: Shader.Binding, model: np.array, mesh_list: list[str], blend_factors: list[Renderable.BlendFactor]) -> None:
         # Do the interpolations
         num_bones = len(self.inverses)
         
@@ -74,6 +74,13 @@ class Renderable(Resource):
 
         ## Blend
         for factor in blend_factors:
+            #set invalid frames to bind pose
+            if factor.start_frame not in range(len(self.frames)):
+                factor.start_frame = 0
+
+            if factor.end_frame not in range(len(self.frames)):
+                factor.end_frame = 0
+
             # fetch bones
             bones_start = self.frames[factor.start_frame]
             bones_end = self.frames[factor.end_frame]
@@ -110,8 +117,6 @@ class Renderable(Resource):
 
         # Finally, draw it
         GL.glUniformMatrix4fv(Renderable.Bindings.MODEL, 1, False, model)
-        GL.glUniformMatrix4fv(Renderable.Bindings.VIEW, 1, False, GLM.value_ptr(view))
-        GL.glUniformMatrix4fv(Renderable.Bindings.PROJ, 1, False, GLM.value_ptr(projection))
         GL.glNamedBufferSubData(self.bones_ssbo, 0, final_bones.nbytes, final_bones.swapaxes(1, 2))
         program.bind(GL.GL_SHADER_STORAGE_BUFFER, Renderable.Bindings.BONES, self.bones_ssbo)
         for mesh_name in mesh_list:

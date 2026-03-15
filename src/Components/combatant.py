@@ -11,4 +11,15 @@ class Combatant(Component):
         self.active_meshes: list[str] = active_meshes or []
         self.target: int = None
         self.action = None
-
+        self.facing = 0
+        self.scale = 70
+        self.frame = 2000
+        self.animations = [
+            {
+                "start_frame": 2,
+                "end_frame": self.frame,
+                "frame_coefficient": 1,
+                "blend_coefficient": 1
+            }
+        ]
+        

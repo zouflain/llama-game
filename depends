@@ -8,3 +8,4 @@ pyglm
 scipy
 cbor2
 pillow
+cffi

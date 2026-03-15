@@ -78,4 +78,5 @@ class Resource:
 
 # Syntatic sugar
 init = Resource.init
+file_system = Resource.file_system
 deinit = Resource.deinit
