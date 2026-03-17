@@ -9,6 +9,5 @@
         <fmod>res/fmod</fmod>
         <fonts>res/fonts</fonts>
         <interface>res/interface</interface>
-        <resources>res/resources</resources>
     </paths>
 </config>

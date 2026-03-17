@@ -1,0 +1,24 @@
+#version 450
+
+const uint MAX_SIZE = 32;
+
+layout(rgba32f, binding = 0) readonly uniform image2D color_layer;
+layout(rgba8, binding = 1) readonly uniform image2D ui_layer;
+layout(rgba32f, binding = 2) writeonly uniform image2D merged_layer;
+
+layout(local_size_x = MAX_SIZE, local_size_y = MAX_SIZE) in;
+
+void main(){
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(imageSize(color_layer)); // unsafe assumption, size of all 3 should be the SAME!
+
+    //Early abort
+    if(pos.x >= size.x-1 || pos.y >= size.y-1 || pos.x == 0 || pos.y == 0){
+        return;
+    }
+    
+    vec4 color_pixel = imageLoad(color_layer, pos);
+    vec4 ui_pixel = imageLoad(ui_layer, ivec2(pos.x, size.y-pos.y));//Note flipped y coordinate
+
+    imageStore(merged_layer, pos, mix(color_pixel, ui_pixel, ui_pixel.w));
+}

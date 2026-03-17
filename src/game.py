@@ -49,6 +49,7 @@ class Game:
         self.is_running = False
         self.screen_dimensions = (1280, 720)
         self.target_resolution = (1280, 720)
+        self.main_fbo = None
         self.blank_vao = None
         self.packs = ["default"]
 
@@ -89,6 +90,13 @@ class Game:
         # controllers
         SDL.SDL_InitSubSystem(SDL.SDL_INIT_JOYSTICK)
 
+
+
+    async def boot(self) -> None:
+        # Async & Post Init
+        self.initWindow()
+        Resources.init(self.packs)
+
         #schedule the Render pass
         self.scheduled_tasks.append(
             Game.ScheduledTask(
@@ -96,15 +104,10 @@ class Game:
                 Game.Constants.RENDER_FPS,
                 window=self.window,
                 resolution=self.screen_dimensions,
-                render_size=self.target_resolution
+                render_size=self.target_resolution,
+                framebuffer = await Resources.Framebuffer.allocate("main_fbo", False, self.target_resolution, 5)
             )
         )
-
-
-    async def boot(self) -> None:
-
-        self.initWindow()
-        Resources.init(self.packs)
 
         self.is_running = True
 

@@ -1,17 +1,90 @@
 ﻿<html>
     <head>
         <style>
-            html{ background: red !important; }
-            * {
-                background-color: white;
-            }
-            .cover-all{
+            html, body{
+                padding: 0;
+                overflow: clip;
+                margin: 0;
+                background-color: transparent;
                 width: 100vw;
                 height: 100vh;
+            }
+            body{
+                display: flex;
+                align-content: center;
+            }
+            .cover-all{
+                width: 100px;
+                height: 100px;
+                background-color: rgba(0,255,0,128);
+                margin: auto auto;
             }
         </style>
     </head>
     <body>
         <div class="cover-all">Hello world!</div>
+        <script type="text/javascript">
+            let i = 0;
+            document.addEventListener("DOMContentLoaded", function(){
+                document.querySelectorAll(".cover-all").forEach(elem=>{
+                    Object.assign(elem.style,{
+                        color: "blue"
+                    });
+                    elem.addEventListener("click", function(event){
+                        event.stopPropagation();
+                        event.preventDefault();
+                        i += 1;
+                        elem.innerText = `${i}`;
+                        //elem.remove();
+                        console.log(elem);
+                        console.log(event);
+                    });
+                });
+            });
+            
+            /*document.addEventListener("click", function(){
+                document.querySelectorAll(".cover-all").forEach(elem=>{
+                    Object.assign(elem.style,{
+                        "background-color": "blue"
+                    });
+                });
+            });
+            class someclass {
+                constructor() {
+                    this.element = null;
+                }
+
+                makeElement(where) {
+                    // 1. Clean up existing element
+                    if (this.element !== null) {
+                    this.element.remove();
+                    }
+
+                    // 2. Convert a string into a real DOM node 
+                    // This acts exactly like $(`<html>`)
+                    const htmlString = `<div class="container">
+                                        <button class="someclass">Click Me</button>
+                                        </div>`;
+                    
+                    const fragment = document.createRange().createContextualFragment(htmlString);
+                    
+                    // Grab the actual element from the fragment before appending
+                    this.element = fragment.firstElementChild;
+
+                    // 3. Find and attach listeners (No jQuery .find() needed)
+                    this.element.querySelector(".someclass").addEventListener("click", (e) => {
+                    this.doStuff(e);
+                    });
+
+                    // 4. Append to the target
+                    where.appendChild(this.element);
+                }
+
+                doStuff(e) {
+                    console.log("Button clicked!", this);
+                }
+            }
+            */
+        </script>
     </body>
 </html>

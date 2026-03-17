@@ -41,25 +41,24 @@ class Battle(System):
         super().__init__(**kwargs)
 
     async def boot(self, render_size: tuple[int, int]) -> bool:
-        self.framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, render_size, 5)
         self.render_shader = await Resources.Shader.generate(name="renderable", permanent=True, fname="renderable.vert")
         self.sobel_shader = await Resources.Shader.generate(name="outlines", permanent=True, fname="outlines.comp")
         
         self.glyph_shader = await Resources.Shader.generate(name="glyphs", permanent=True, fname="text.comp")
         return True
 
-    @System.on(Events.Render, System.Priority.LOWEST)
+    @System.on(Events.Render, System.Priority.HIGHEST)
     async def onRenderStep(self, event: Events.Render) -> bool:
         GL.glClearColor(0,0,0,0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
 
         #### TEST CODE ####
         view = GLM.lookAt((100, -100, 100), (0, 0, 0), (0, 0, 1))
-        projection = GLM.ortho(-self.framebuffer.resolution[0]/2, self.framebuffer.resolution[0]/2, -self.framebuffer.resolution[1]/2, self.framebuffer.resolution[1]/2, 0, 1000)
+        projection = GLM.ortho(-event.framebuffer.resolution[0]/2, event.framebuffer.resolution[0]/2, -event.framebuffer.resolution[1]/2, event.framebuffer.resolution[1]/2, 0, 1000)
         #### END TEST CODE ####
 
         GL.glEnable(GL.GL_DEPTH_TEST)
-        with Resources.Framebuffer.Binding(self.framebuffer, event.resolution):
+        with Resources.Framebuffer.Binding(event.framebuffer, event.resolution):
             GL.glClearColor(0.05,0.05,0.05,1)
             GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
             with Resources.Shader.Binding(self.render_shader) as render_prog:
@@ -74,31 +73,25 @@ class Battle(System):
 
             with Resources.Shader.Binding(self.sobel_shader):
                 GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
-                GL.glBindImageTexture(Battle.Constants.COLOR, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT0], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
-                GL.glBindImageTexture(Battle.Constants.WORLD, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT1], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
-                GL.glBindImageTexture(Battle.Constants.DEPTH, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT2], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
-                GL.glBindImageTexture(Battle.Constants.NORMALS, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT3], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
+                GL.glBindImageTexture(Battle.Constants.COLOR, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT0], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
+                GL.glBindImageTexture(Battle.Constants.WORLD, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT1], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
+                GL.glBindImageTexture(Battle.Constants.DEPTH, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT2], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
+                GL.glBindImageTexture(Battle.Constants.NORMALS, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT3], 0, GL.GL_FALSE, 0, GL.GL_READ_ONLY, GL.GL_RGBA32F)
 
-                GL.glBindImageTexture(Battle.Constants.OUTPUT, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], 0, GL.GL_FALSE, 0, GL.GL_WRITE_ONLY, GL.GL_RGBA32F)
-                GL.glDispatchCompute(int(self.framebuffer.resolution[0]/32)+1, int(self.framebuffer.resolution[1]/32)+1, 1, 0)
+                GL.glBindImageTexture(Battle.Constants.OUTPUT, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], 0, GL.GL_FALSE, 0, GL.GL_WRITE_ONLY, GL.GL_RGBA32F)
+                GL.glDispatchCompute(int(event.framebuffer.resolution[0]/32)+1, int(event.framebuffer.resolution[1]/32)+1, 1, 0)
                 GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
 
             '''
             with Resources.Shader.Binding(self.glyph_shader) as glyph_program:
                 Resources.GlyphSet["font"].draw(
-                    #glyph_program, event.resolution, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], "Hello world!\n#ff0000TEST!", (0, 0), 32, (1184,96), (0,1,1)
-                    glyph_program, event.resolution, self.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4],
+                    #glyph_program, event.resolution, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4], "Hello world!\n#ff0000TEST!", (0, 0), 32, (1184,96), (0,1,1)
+                    glyph_program, event.resolution, event.framebuffer.textures[GL.GL_COLOR_ATTACHMENT4],
                     #"ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789'\"+_)(&^%$@!`?.><\\/)",
                     "You there! Out of the WAY!\nKeep standin' there and you'll\nget knocked into the ocean!",
                     (0, 0), 32, (1184,96), (0,1,1)
                 )
             '''
-
-        GL.glNamedFramebufferReadBuffer(self.framebuffer.fbo, GL.GL_COLOR_ATTACHMENT4)
-        GL.glBlitNamedFramebuffer(self.framebuffer.fbo, 0, 0, 0, event.render_size[0], event.render_size[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
-
-        #System.immediateEvent(PostRender())
-        SDL.SDL_GL_SwapWindow(event.window)
 
         return False
 
@@ -130,15 +123,10 @@ class Battle(System):
             #combatant.frame += 1
             combatant.frame = 0
             combatant.animations[0]["end_frame"] = combatant.frame
-            combatant.pos[:2] += chosen_vectors[i]*2
+            #combatant.pos[:2] += chosen_vectors[i]*2
         return False
 
     @System.on(Events.FromSDL, System.Priority.DEFAULT+10)
     async def interfaceCatchSDL(self, event: Events.FromSDL) -> bool:
         #print(event)
         return False
-
-    @System.on(Events.FromSDL, System.Priority.HIGHEST)
-    async def gameplayCatchSDL(self, event: Events.FromSDL):
-        #print("Nope!")
-        return True

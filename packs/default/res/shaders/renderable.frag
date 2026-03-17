@@ -11,8 +11,8 @@ out vec4 depth_layer;
 out vec4 normal_layer;
 
 void main(){
-    float dot = dot(frag_normal, vec3(0, 0, 1));
-    out_color = vec4(1,1,1,1) * pow(dot, 0.5);
+    float ang = clamp(dot(frag_normal, vec3(0, 0, 1)), 0, 1);
+    out_color = vec4(vec3(1) * pow(ang, 0.5), 1);
     world_layer = vec4(frag_pos, 0.0);
     depth_layer = vec4(frag_depth);
     normal_layer = vec4(frag_normal, 0.0);
