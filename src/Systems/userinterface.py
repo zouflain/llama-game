@@ -8,6 +8,7 @@ import platform
 import os
 import pathlib
 import ctypes
+import json
 
 import Events, Resources, Components
 
@@ -205,6 +206,26 @@ class UserInterface(System):
             self._lib.ulDestroyString(u_str)
 
         return True
+
+    def callJSFunc(self, func_name: str, data: dict = None) -> dict:
+        result = None
+        if not data:
+            data = {}
+
+        context = self._lib.ulViewLockJSContext(self.view)
+        js_string = self._lib_wc.JSStringCreateWithUTF8CString(f"{func_name}(JSON.parse({json.dumps(json.dumps(data))}));".encode("utf-8"))
+        js_result = self._lib_wc.JSEvaluateScript(context, js_string, self._ffi.NULL, self._ffi.NULL, 0, self._ffi.NULL)
+        if self._lib_wc.JSValueIsString(context, js_result):
+            js_copy = self._lib_wc.JSValueToStringCopy(context, js_result, self._ffi.NULL)
+            js_strlen = self._lib_wc.JSStringGetMaximumUTF8CStringSize(js_copy)
+            js_buffer = self._ffi.new("char[]", js_strlen)
+            self._lib_wc.JSStringGetUTF8CString(js_copy, js_buffer, js_strlen)
+            result = self._ffi.string(js_buffer).decode("utf-8")
+            self._lib_wc.JSStringRelease(js_copy)
+        self._lib.JSStringRelease(js_string)
+        self._lib.ulViewUnlockJSContext(self.view)
+
+        return json.loads(result) if result else None
 
     def jsHelloWorld(self, ctx, func, this, argc, args, exception):
         print("Javascript says Hello World!")

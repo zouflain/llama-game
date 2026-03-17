@@ -16,7 +16,8 @@
             .cover-all{
                 width: 100px;
                 height: 100px;
-                background-color: rgba(0,255,0,128);
+                background-color: green;
+                opacity: 0.75;
                 margin: auto auto;
             }
             .cover-all:hover{
@@ -29,6 +30,11 @@
         <div class="cover-all">Hello world!</div>
         <script type="text/javascript">
             let i = 0;
+            function TestResult(){
+                return JSON.stringify({
+                    test: "result"
+                });
+            }
             document.addEventListener("DOMContentLoaded", function(){
                 hello_world();
                 document.querySelectorAll(".cover-all").forEach(elem=>{
