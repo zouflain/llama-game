@@ -19,6 +19,10 @@
                 background-color: rgba(0,255,0,128);
                 margin: auto auto;
             }
+            .cover-all:hover{
+                cursor: alias;
+                background-color: red;
+            }
         </style>
     </head>
     <body>
@@ -26,6 +30,7 @@
         <script type="text/javascript">
             let i = 0;
             document.addEventListener("DOMContentLoaded", function(){
+                hello_world();
                 document.querySelectorAll(".cover-all").forEach(elem=>{
                     Object.assign(elem.style,{
                         color: "blue"

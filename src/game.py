@@ -165,13 +165,22 @@ class Game:
             now = time.monotonic()
 
             # Handle events
+            last_motion = None
             for event in SDLext.get_events():
                 match event.type:
                     case SDL.SDL_QUIT:
                         self.is_running = False
-                    case _:
+                    case SDL.SDL_MOUSEMOTION:
+                        last_motion = event
+                    case SDL.SDL_MOUSEBUTTONDOWN | SDL.SDL_MOUSEBUTTONUP:
+                        if last_motion:
+                            Systems.raiseEvent(Events.FromSDL(last_motion))
+                            last_motion = None
                         Systems.raiseEvent(Events.FromSDL(event))
-
+                    # TODO: need keydowns, maybe others...
+            if last_motion:
+                Systems.raiseEvent(Events.FromSDL(last_motion))
+            
             # Queue scheduled events
             for task in self.scheduled_tasks:
                 # Start the timers if not already set

@@ -6,6 +6,7 @@ import OpenGL.GL as GL
 import sdl2 as SDL
 import platform
 import os
+import pathlib
 import ctypes
 
 import Events, Resources, Components
@@ -142,128 +143,21 @@ class UserInterface(System):
         super().__init__(**kwargs)
         self._ffi = None
         self._lib = None
+        self._lib_wc = None
         self.screen_dimensions: tuple[int, int] = screen_dimensions
         self.gl_texture: int = 0
+        self._callbacks = {}
+        self.cursor_state = 0
 
         if not self._ffi:
             self._ffi = FFI()
-            self._ffi.cdef("""
-                // Strings
-                typedef void* ULString;
-                ULString ulCreateString(const char* str);
+            self._ffi.cdef(pathlib.Path("src/include/ultralight.h").read_text())
+            self._ffi.cdef(pathlib.Path("src/include/webcore.h").read_text())
 
-                void ulDestroyString(ULString* string);
-                char* ulStringGetData(ULString str);
-
-                // Config
-                typedef void* ULConfig;
-
-                ULConfig ulCreateConfig();
-
-                // File System
-                typedef struct {
-                    bool (*file_exists) (ULString path);
-                    void* (*get_file_mime_type) (ULString path);
-                    void* (*get_file_charset) (ULString path);
-                    void* (*open_file) (ULString path);
-                }ULFileSystem;
-                void ulPlatformSetFileSystem(ULFileSystem file_system);
-
-                // Renderer
-                typedef void* ULRenderer;
-
-                ULRenderer ulCreateRenderer(ULConfig config);
-                void ulUpdate(ULRenderer renderer);
-                void ulRender(ULRenderer renderer);
-
-                //Buffer
-                typedef void* ULBuffer;
-
-                ULBuffer ulCreateBuffer(void* data, size_t size, void* user_data, void* destruction_callback);
-
-                //Fonts
-                typedef struct {
-                    void* (*get_fallback_font)();
-                    void* (*get_fallback_font_for_characters)(ULString characters, int weight, bool italic);
-                    void* (*load)(ULString family, int weight, bool italic);
-                }ULFontLoader;
-                typedef void* ULFontFile;
-
-                ULFontFile ulFontFileCreateFromBuffer(ULBuffer buffer);
-                void ulPlatformSetFontLoader(ULFontLoader font_loader);
-
-                //view
-                typedef void* ULViewConfig;
-                typedef void* ULSession;
-                typedef void* ULView;
-
-                ULViewConfig ulCreateViewConfig();
-                void ulDestroyViewConfig(ULViewConfig config);
-                ULView ulCreateView(ULRenderer renderer, unsigned int width, unsigned int height, ULViewConfig view_config, ULSession session);
-                void ulViewConfigSetIsTransparent(ULViewConfig config, bool is_transparent);
-
-                //Surfaces
-                typedef void* ULSurface;
-                typedef struct {
-                    int left;
-                    int top;
-                    int right;
-                    int bottom;
-                } ULIntRect;
-
-                ULSurface ulViewGetSurface(ULView view);
-                ULIntRect ulSurfaceGetDirtyBounds(ULSurface surface);
-                void ulSurfaceClearDirtyBounds(ULSurface surface);
-
-                //Bitmaps
-                typedef void* ULBitmap;
-
-                unsigned int ulBitmapGetWidth(ULBitmap bitmap);
-                unsigned int ulBitmapGetHeight(ULBitmap bitmap);
-                unsigned int ulBitmapGetRowBytes(ULBitmap bitmap);
-                ULBitmap ulBitmapSurfaceGetBitmap(ULSurface surface);
-                void* ulBitmapLockPixels(ULBitmap bitmap);
-                void ulBitmapUnlockPixels(ULBitmap bitmap);
-                size_t ulBitmapGetSize(ULBitmap bitmap);
-                
-                //HTML
-                void ulViewLoadHTML(ULView view, ULString html_string);
-
-                //Events
-                typedef enum {
-                    kKeyEventType_KeyDown,
-                    kKeyEventType_KeyUp,
-                    kKeyEventType_RawKeyDown,
-                    kKeyEventType_Char,
-                } ULKeyEventType;
-                typedef enum {
-                    kMouseEventType_MouseMoved,
-                    kMouseEventType_MouseDown,
-                    kMouseEventType_MouseUp,
-                } ULMouseEventType;
-                typedef enum {
-                    kMouseButton_None = 0,
-                    kMouseButton_Left,
-                    kMouseButton_Middle,
-                    kMouseButton_Right,
-                } ULMouseButton;
-                typedef enum {
-                    kScrollEventType_ScrollByPixel,
-                    kScrollEventType_ScrollByPage,
-                } ULScrollEventType;
-                typedef void* ULMouseEvent;
-
-                ULMouseEvent ulCreateMouseEvent(ULMouseEventType type, int x, int y, ULMouseButton button);
-                void ulMouseEventSetType(ULMouseEvent evt, ULMouseEventType type);
-                void ulMouseEventSetX(ULMouseEvent evt, int x);
-                void ulMouseEventSetY(ULMouseEvent evt, int y);
-                void ulMouseEventSetButton(ULMouseEvent evt, ULMouseButton button);
-                void ulViewFireMouseEvent(ULView view, ULMouseEvent evt);
-                void ulDestroyMouseEvent(ULMouseEvent evt);
-            """)
             match platform.system():
                 case "Linux":
                     self._lib = self._ffi.dlopen("libUltralight.so")
+                    self._lib_wc = self._ffi.dlopen("libWebCore.so")
                 case _:
                     raise Exception("Unrecognized operating system")
     
@@ -282,14 +176,15 @@ class UserInterface(System):
         self._lib.ulDestroyViewConfig(view_config)
         self._lib.ulUpdate(self.renderer) # Ensure this happens at LEAST ONCE before first render
 
-        '''
-        self.event_prefabs = {
-            "mouse": self._lib.ulCreateMouseEvent(self._lib.kMouseEventType_MouseMoved, 0, 0, self._lib.kMouseButton_None)
+        # Set and pin UL callbacks
+        self._callbacks = self._callbacks | {
+            "change_cursor": self._ffi.callback("void(void*,ULView,ULCursor)")(self.callbackChangeCursor),
+            "window_ready": self._ffi.callback("void(void*,ULView,unsigned long long, bool, ULString)")(self.callbackWindowReady)
         }
-        '''
+        self._lib.ulViewSetChangeCursorCallback(self.view, self._callbacks["change_cursor"], self._ffi.NULL)
+        self._lib.ulViewSetWindowObjectReadyCallback(self.view, self._callbacks["window_ready"], self._ffi.NULL)
+        
 
-
-        #self.framebuffer = await Resources.Framebuffer.allocate("battle_buffer", False, render_size, 5)
 
         # Regular old opengl
         self.gl_texture = GL.glGenTextures(1)
@@ -310,6 +205,32 @@ class UserInterface(System):
             self._lib.ulDestroyString(u_str)
 
         return True
+
+    def jsHelloWorld(self, ctx, func, this, argc, args, exception):
+        print("Javascript says Hello World!")
+        return self._ffi.NULL
+
+    def callbackWindowReady(self, user_data, caller, frame_id, is_main_frame, url):
+        context = self._lib.ulViewLockJSContext(self.view)
+        def makeJSFunction(js_name, cb_name, cb_func):
+            self._callbacks[cb_name] = self._ffi.callback("JSValueRef(JSContextRef, JSObjectRef, JSObjectRef, size_t, JSValueRef[], JSValueRefPtr)", cb_func)
+            js_global = self._lib_wc.JSContextGetGlobalObject(context)
+            js_func_name = self._lib_wc.JSStringCreateWithUTF8CString(js_name.encode("utf-8"))
+            js_func_obj = self._lib_wc.JSObjectMakeFunctionWithCallback(context, js_func_name, self._callbacks[cb_name])
+            self._lib_wc.JSObjectSetProperty(context, js_global, js_func_name, js_func_obj, 0, self._ffi.NULL)
+            self._lib_wc.JSStringRelease(js_func_name)
+        
+        makeJSFunction("hello_world", "hello_world", self.jsHelloWorld)
+        self._lib.ulViewUnlockJSContext(self.view)
+
+    def callbackChangeCursor(self, user_data, caller, cursor): # TODO: actually change cursor, this is test/placeholder
+        if self.cursor_state != cursor:
+            self.cursor_state = cursor
+            match cursor:
+                case self._lib.kCursor_Alias:
+                    print("!")
+                case _:
+                    print("?")
 
     @System.on(Events.Logic, System.Priority.LOWEST)
     async def onLogicStep(self, event: Events.Logic) -> bool:
@@ -361,7 +282,6 @@ class UserInterface(System):
                     event.sdl_event.motion.y,
                     self._lib.kMouseEventType_MouseMoved
                 )
-                ul_event = None
             case SDL.SDL_MOUSEBUTTONDOWN | SDL.SDL_MOUSEBUTTONUP:
                 evt_type = self._lib.kMouseEventType_MouseDown
                 if event.sdl_event.type == SDL.SDL_MOUSEBUTTONUP:

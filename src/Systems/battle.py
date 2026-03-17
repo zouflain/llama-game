@@ -121,8 +121,8 @@ class Battle(System):
         for i,(eid, combatant) in enumerate(combatants):
             combatant.facing += 2
             #combatant.frame += 1
-            combatant.frame = 0
-            combatant.animations[0]["end_frame"] = combatant.frame
+            #combatant.frame = 0
+            #combatant.animations[0]["end_frame"] = combatant.frame
             #combatant.pos[:2] += chosen_vectors[i]*2
         return False
 
