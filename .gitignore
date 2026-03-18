@@ -1,5 +1,5 @@
 .venv/*
 .vscode/*
-archive/*
+.archive/*
 gguf/*
 **/__pycache__/**
