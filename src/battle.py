@@ -6,8 +6,7 @@ import sdl2 as SDL
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from .system import System
-import Events, Components, Resources
+import Systems, Events, Components, Resources
 
 
 class Combatant(Components.Component):
@@ -27,7 +26,35 @@ class BattleAnimator(Components.Component):
         self.frame_data = None
 
 
-class Battle(System):
+class Combatant(Components.Component):
+    def __init__(self, eid: int = None, pos: np.ndarray[tuple[float, float, float]] = np.zeros(3, dtype=np.float32), mannequin: str = None, active_meshes: list[str] = None, **kwargs):
+        super().__init__(eid, **kwargs)
+        self.pos: np.ndarray[tuple[float, float, float]] = pos
+        self.mannequin: str = mannequin
+        self.active_meshes: list[str] = active_meshes or []
+        self.target: int = None
+        self.action = None
+        self.facing = 0
+        self.scale = 70
+        self.frame = 739
+        self.animations = [
+            {
+                "start_frame": self.frame,
+                "end_frame": self.frame,
+                "frame_coefficient": 1,
+                "blend_coefficient": 1
+            }
+        ]
+        
+
+
+class PartyMember(Components.Component): pass
+
+
+class Character(Components.Component): pass
+
+
+class Battle(Systems.System):
     class Constants (int, Enum):
         COLOR = 0
         WORLD = 1
@@ -47,7 +74,7 @@ class Battle(System):
         self.glyph_shader = await Resources.Shader.generate(name="glyphs", permanent=True, fname="text.comp")
         return True
 
-    @System.on(Events.Render, System.Priority.HIGHEST)
+    @Systems.on(Events.Render, Systems.Priority.HIGHEST)
     async def onRenderStep(self, event: Events.Render) -> bool:
         GL.glClearColor(0,0,0,0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT|GL.GL_DEPTH_BUFFER_BIT)
@@ -95,7 +122,7 @@ class Battle(System):
 
         return False
 
-    @System.on(Events.Logic, System.Priority.DEFAULT)
+    @Systems.on(Events.Logic, Systems.Priority.DEFAULT)
     async def onLogicStep(self, event: Events.Logic) -> bool:
         combatants = Components.Combatant.getAll()
 
@@ -126,7 +153,7 @@ class Battle(System):
             #combatant.pos[:2] += chosen_vectors[i]*2
         return False
 
-    @System.on(Events.FromSDL, System.Priority.DEFAULT+10)
+    @Systems.on(Events.FromSDL, Systems.Priority.DEFAULT+10)
     async def interfaceCatchSDL(self, event: Events.FromSDL) -> bool:
         #print(event)
         return False

@@ -1,5 +1,4 @@
 from __future__ import annotations
-from .system import System
 from cffi import FFI
 from enum import Enum, auto as EnumAuto
 import OpenGL.GL as GL
@@ -10,9 +9,9 @@ import pathlib
 import ctypes
 import json
 
-import Events, Resources, Components
+import Systems, Events, Resources, Components
 
-class UserInterface(System):
+class UserInterface(Systems.System):
 
     class ShaderConstants(int, Enum):
         COLOR = 0
@@ -152,8 +151,8 @@ class UserInterface(System):
 
         if not self._ffi:
             self._ffi = FFI()
-            self._ffi.cdef(pathlib.Path("src/include/ultralight.h").read_text())
-            self._ffi.cdef(pathlib.Path("src/include/webcore.h").read_text())
+            self._ffi.cdef(pathlib.Path("src/Include/ultralight.h").read_text())
+            self._ffi.cdef(pathlib.Path("src/Include/webcore.h").read_text())
 
             match platform.system():
                 case "Linux":
@@ -253,12 +252,12 @@ class UserInterface(System):
                 case _:
                     print("?")
 
-    @System.on(Events.Logic, System.Priority.LOWEST)
+    @Systems.on(Events.Logic, Systems.Priority.LOWEST)
     async def onLogicStep(self, event: Events.Logic) -> bool:
         self._lib.ulUpdate(self.renderer)
         return False
 
-    @System.on(Events.Render, System.Priority.LOWEST)
+    @Systems.on(Events.Render, Systems.Priority.LOWEST)
     async def onRenderStep(self, event: Events.Render) -> bool:
         self._lib.ulRender(self.renderer)
         surface = self._lib.ulViewGetSurface(self.view)
@@ -292,7 +291,7 @@ class UserInterface(System):
 
         return False
 
-    @System.on(Events.FromSDL, System.Priority.HIGHEST)
+    @Systems.on(Events.FromSDL, Systems.Priority.HIGHEST)
     async def onSDLEvent(self, event: Events.FromSDL) -> bool:
         ul_event = None
         match event.sdl_event.type:

@@ -4,6 +4,8 @@ import ast
 from pathlib import Path
 from importlib import import_module
 from importlib.util import spec_from_file_location, module_from_spec
+
+
 import enum
 import yaml
 
@@ -26,6 +28,8 @@ class Event:
 
         yaml.SafeLoader.add_constructor(event_tag, constructor)
 
+
+### BOILER PLATE DYNAMIC PACKAGE ###
 _CONTENT_MAP = {}
 _INITIALIZED = False
 _CLASS_NAME = "Event"
