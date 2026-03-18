@@ -27,6 +27,31 @@ import Events
 import Systems
 import Components
 
+class FromSDL(Events.Event):
+    def __init__(self, sdl_event, **kwargs):
+        super().__init__(**kwargs)
+        self.sdl_event = sdl_event
+
+class Render(Events.Event):
+    def __init__(self, dt: float, window, resolution: tuple[int, int], render_size: tuple[int, int], framebuffer, **kwargs):
+        '''Important rendering event'''
+        super().__init__(**kwargs)
+        self.dt = dt
+        self.window = window
+        self.resolution = resolution
+        self.render_size = render_size
+        self.framebuffer = framebuffer
+
+class Logic(Events.Event):
+    def __init__(self, dt: float, **kwargs):
+        super().__init__(**kwargs)
+        self.dt = dt
+
+class GenerateEntity(Events.Event):
+    def __init__(self, entity: int = None, **kwargs):
+        super().__init__(**kwargs)
+        self.entity = entity
+
 class Game:
     class Constants(int, Enum):
         RENDER_FPS = 200

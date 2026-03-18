@@ -110,3 +110,4 @@ immediateEvent = System.immediateEvent
 yieldEvents = System.yieldEvents
 register = System.register
 unregister = System.unregister
+on = System.on
