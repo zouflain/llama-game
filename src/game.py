@@ -17,6 +17,7 @@ import sqlite3 as SQL
 import json as JSON
 import time
 import sys
+import os
 import OpenGL.GL as GL
 from inspect import isclass
 from enum import Enum, auto
@@ -33,19 +34,23 @@ class FromSDL(Events.Event):
         self.sdl_event = sdl_event
 
 class Render(Events.Event):
-    def __init__(self, dt: float, window, resolution: tuple[int, int], render_size: tuple[int, int], framebuffer, **kwargs):
+    def __init__(self, dt: float, abs_time: float, frequency: float, window, resolution: tuple[int, int], render_size: tuple[int, int], framebuffer, **kwargs):
         '''Important rendering event'''
         super().__init__(**kwargs)
-        self.dt = dt
-        self.window = window
-        self.resolution = resolution
-        self.render_size = render_size
-        self.framebuffer = framebuffer
+        self.dt: float = dt
+        self.abs_time: float = abs_time
+        self.frequency: float = frequency
+        self.window: SDL.SDL_Window = window
+        self.resolution: tuple[int, int] = resolution
+        self.render_size: tuple[int, int] = render_size
+        self.framebuffer: Resources.Framebuffer = framebuffer
 
 class Logic(Events.Event):
-    def __init__(self, dt: float, **kwargs):
+    def __init__(self, dt: float, abs_time: float, frequency: float, **kwargs):
         super().__init__(**kwargs)
-        self.dt = dt
+        self.dt: float = dt
+        self.abs_time: float = abs_time
+        self.frequency: float = frequency
 
 class GenerateEntity(Events.Event):
     def __init__(self, entity: int = None, **kwargs):
@@ -77,6 +82,7 @@ class Game:
         self.main_fbo = None
         self.blank_vao = None
         self.packs = ["default"]
+        self.joysticks = []
 
         self.scheduled_tasks = [
             Game.ScheduledTask(Events.Logic, Game.Constants.LOGIC_FPS)
@@ -113,7 +119,12 @@ class Game:
         GL.glBindVertexArray(self.blank_vao)
 
         # controllers
-        SDL.SDL_InitSubSystem(SDL.SDL_INIT_JOYSTICK)
+        SDL.SDL_InitSubSystem(SDL.SDL_INIT_GAMECONTROLLER)
+        with open(os.path.join(getattr(sys, '_MEIPASS', os.getcwd()), "src", "Include","gamecontrollerdb.txt"), "rb") as mapfile:
+            mappings = mapfile.read()
+            SDL.SDL_GameControllerAddMappingsFromFile(mappings)
+            for i in range(SDL.SDL_NumJoysticks()):
+                self.joysticks.append(SDL.SDL_GameControllerOpen(i))
 
 
 
@@ -151,39 +162,17 @@ class Game:
         await Systems.register(Systems.Battle(), render_size=self.target_resolution)
         await Systems.register(Systems.EntityController(150))
         await Systems.register(Systems.UserInterface(self.screen_dimensions))
-        player_id = (await Systems.immediateEvent(Events.GenerateEntity())).entity
-        Components.Character(player_id)
-        Components.PartyMember(player_id)
-        p_combatant = Components.Combatant(
-            player_id,
-            pos=[100., 100., 0.],
-            mannequin="mage",
-            active_meshes=[
-                mesh for mesh in renderable.meshes.keys() if mesh not in [
-                    "Icosphere", "Spellbook", "Spellbook_open",# "Mage_Hat",
-                    "Mage_Cape", "2H_Staff", "1H_Wand"
-                ]
-            ]
-        )
-        #p_combatant.pos[0] = 10
+        
+        await Systems.immediateEvent(Events.BattleBegin)
 
+        player_evt = await Systems.immediateEvent(Events.GenerateEntity())
+        await Systems.immediateEvent(Events.SpawnCombatant(player_evt.entity, 0))
+        Components.Combatant[player_evt.entity].posture = Components.Combatant.Posture.EVASIVE
+        for i in range(2):
+            enemy_evt = await Systems.immediateEvent(Events.GenerateEntity())
+            await Systems.immediateEvent(Events.SpawnCombatant(enemy_evt.entity, 0))
+            Components.Combatant[enemy_evt.entity].party_id = 10
 
-        enemy_id = (await Systems.immediateEvent(Events.GenerateEntity())).entity
-        Components.Combatant(
-            enemy_id,
-            mannequin="mage",
-            active_meshes=[
-                mesh for mesh in renderable.meshes.keys() if mesh not in [
-                    "Icosphere", "Spellbook", "Spellbook_open",# "Mage_Hat",
-                    "Mage_Cape", "2H_Staff", "1H_Wand"
-                ]
-            ]
-        )
-
-        for char in Components.find([Components.Character, Components.PartyMember]):
-            print(char)
-
-        print(Components.Combatant.getAll())
         #####END TEST CODE#####
 
         while self.is_running:
@@ -202,6 +191,8 @@ class Game:
                             Systems.raiseEvent(Events.FromSDL(last_motion))
                             last_motion = None
                         Systems.raiseEvent(Events.FromSDL(event))
+                    case SDL.SDL_CONTROLLERBUTTONDOWN:
+                        Systems.raiseEvent(Events.FromSDL(event))
                     # TODO: need keydowns, maybe others...
             if last_motion:
                 Systems.raiseEvent(Events.FromSDL(last_motion))
@@ -214,7 +205,7 @@ class Game:
 
                 dt = now - task.last_run
                 if dt >= 1.0/task.interval:
-                    Systems.raiseEvent(task.event_type(dt=dt, **task.kwargs))
+                    Systems.raiseEvent(task.event_type(dt=dt, abs_time=now, frequency=task.interval, **task.kwargs))
                     task.last_run = now
 
             # Iterate over queued events

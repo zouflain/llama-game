@@ -43,14 +43,42 @@ ULFontFile ulFontFileCreateFromBuffer(ULBuffer buffer);
 void ulPlatformSetFontLoader(ULFontLoader font_loader);
 
 //view
+typedef enum {
+  kMessageLevel_Log = 0,
+  kMessageLevel_Warning,
+  kMessageLevel_Error,
+  kMessageLevel_Debug,
+  kMessageLevel_Info,
+} ULMessageLevel;
+typedef enum {
+  kMessageSource_XML = 0,
+  kMessageSource_JS,
+  kMessageSource_Network,
+  kMessageSource_ConsoleAPI,
+  kMessageSource_Storage,
+  kMessageSource_AppCache,
+  kMessageSource_Rendering,
+  kMessageSource_CSS,
+  kMessageSource_Security,
+  kMessageSource_ContentBlocker,
+  kMessageSource_Media,
+  kMessageSource_MediaSource,
+  kMessageSource_WebRTC,
+  kMessageSource_ITPDebug,
+  kMessageSource_PrivateClickMeasurement,
+  kMessageSource_PaymentRequest,
+  kMessageSource_Other,
+} ULMessageSource;
 typedef void* ULViewConfig;
 typedef void* ULSession;
 typedef void* ULView;
+typedef void (*ULAddConsoleMessageCallback)(void* user_data, ULView caller, ULMessageSource source, ULMessageLevel level, ULString message, unsigned int line_number, unsigned int column_number, ULString source_id);
 
 ULViewConfig ulCreateViewConfig();
 void ulDestroyViewConfig(ULViewConfig config);
 ULView ulCreateView(ULRenderer renderer, unsigned int width, unsigned int height, ULViewConfig view_config, ULSession session);
 void ulViewConfigSetIsTransparent(ULViewConfig config, bool is_transparent);
+void ulViewSetAddConsoleMessageCallback(ULView view, ULAddConsoleMessageCallback callback, void* user_data);
 
 //Surfaces
 typedef void* ULSurface;
@@ -78,6 +106,7 @@ size_t ulBitmapGetSize(ULBitmap bitmap);
 
 //HTML
 void ulViewLoadHTML(ULView view, ULString html_string);
+void ulViewLoadURL(ULView view, ULString url_string);
 
 //Events
 typedef enum {
@@ -86,6 +115,12 @@ typedef enum {
     kKeyEventType_RawKeyDown,
     kKeyEventType_Char,
 } ULKeyEventType;
+typedef enum {
+    kMod_AltKey = 1 << 0,
+    kMod_CtrlKey = 1 << 1,
+    kMod_MetaKey = 1 << 2,
+    kMod_ShiftKey = 1 << 3,
+} Modifiers;
 typedef enum {
     kMouseEventType_MouseMoved,
     kMouseEventType_MouseDown,
@@ -102,14 +137,28 @@ typedef enum {
     kScrollEventType_ScrollByPage,
 } ULScrollEventType;
 typedef void* ULMouseEvent;
+typedef void* ULKeyEvent;
 
 ULMouseEvent ulCreateMouseEvent(ULMouseEventType type, int x, int y, ULMouseButton button);
-void ulMouseEventSetType(ULMouseEvent evt, ULMouseEventType type);
+/*void ulMouseEventSetType(ULMouseEvent evt, ULMouseEventType type);
 void ulMouseEventSetX(ULMouseEvent evt, int x);
 void ulMouseEventSetY(ULMouseEvent evt, int y);
-void ulMouseEventSetButton(ULMouseEvent evt, ULMouseButton button);
+void ulMouseEventSetButton(ULMouseEvent evt, ULMouseButton button);*/
 void ulViewFireMouseEvent(ULView view, ULMouseEvent evt);
 void ulDestroyMouseEvent(ULMouseEvent evt);
+ULKeyEvent ulCreateKeyEvent(ULKeyEventType type, unsigned int modifiers, int virtual_key_code, int native_key_code, ULString text, ULString unmodified_text, bool is_keypad, bool is_auto_repeat, bool is_system_key);
+void ulViewFireKeyEvent(ULView view, ULKeyEvent key_event);
+void ulDestroyKeyEvent(ULKeyEvent evt);
+
+//keycodes
+const int GK_TAB = 0x09;
+const int GK_RETURN = 0x0D;
+const int GK_SPACE = 0x20;
+const int GK_ESCAPE = 0x1B;
+const int GK_LEFT = 0x25;
+const int GK_UP = 0x26;
+const int GK_RIGHT = 0x27;
+const int GK_DOWN = 0x28;
 
 //Callbacks
 typedef enum {

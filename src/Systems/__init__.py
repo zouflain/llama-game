@@ -20,10 +20,10 @@ class System:
     @dataclass
     class Listener:
         priority: int
-        callback: Callable[[Event, ...], bool]
+        callback: Callable[[Event, ...], Event.Result]
         kwargs: dict = field(default_factory=dict)
 
-        async def execute(self, event: Event) -> bool:
+        async def execute(self, event: Event) -> Event.Result:
             return await self.callback(event=event, **self.kwargs)
 
 
@@ -65,9 +65,17 @@ class System:
 
     @staticmethod
     async def immediateEvent(event: Event) -> Event:
+        event._result = Event.Result.CONTINUE
         for listener in System.__listener_cache[type(event)]:
-            if await listener.execute(event):
-                break
+            result = await listener.execute(event)
+            event._result = result
+            match result:
+                case Event.Result.ABORT | Event.Result.CONSUME:
+                    break
+                case Event.Result.CONTINUE:
+                    pass # for now, eventually log it!
+        else:
+           event._result = Event.Result.FINISHED
 
         return event
 
@@ -147,7 +155,7 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}): '''{ast.get_docstring(node) or '...'}'''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"

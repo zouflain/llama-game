@@ -150,7 +150,7 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}): '''{ast.get_docstring(node) or '...'}'''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"

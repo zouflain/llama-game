@@ -25,22 +25,35 @@
                 background-color: red;
             }
         </style>
+        <script src="file://interface/combat.js"></script>
     </head>
     <body>
         <div class="cover-all">Hello world!</div>
+        <div class="cover-all">
+            <input class="a-button" type="button" value ="A">
+            <input type="button" value ="B">
+        </div>
         <script type="text/javascript">
             let i = 0;
-            function TestResult(){
-                return JSON.stringify({
-                    test: "result"
+            document.addEventListener("focusin", function(){
+                document.querySelectorAll(":focus-visible").forEach((elem)=>{
+                    const bounds = elem.getBoundingClientRect();
+                    const center = {
+                        x: bounds.left + bounds.width/2,
+                        y: bounds.top + bounds.height/2
+                    }
+                    snapMouse(JSON.stringify(center));
                 });
-            }
+            });
+            window.addEventListener("blur", function(){
+                console.log("blurred");
+            });
             document.addEventListener("DOMContentLoaded", function(){
-                hello_world();
+                //Combat.onTickUpdate("{}");
                 document.querySelectorAll(".cover-all").forEach(elem=>{
                     Object.assign(elem.style,{
                         color: "blue"
-                    });
+                    });/*
                     elem.addEventListener("click", function(event){
                         event.stopPropagation();
                         event.preventDefault();
@@ -49,6 +62,14 @@
                         //elem.remove();
                         console.log(elem);
                         console.log(event);
+                    });*/
+                });
+                document.querySelectorAll(".a-button").forEach(elem=>{
+                    elem.addEventListener("click", function(event){
+                        event.stopPropagation();
+                        event.preventDefault();
+                        i += 1;
+                        console.log(i);
                     });
                 });
             });

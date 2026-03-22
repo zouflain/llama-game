@@ -4,5 +4,4 @@ animations:
     frames:
       - 
         events:
-          - !Logic { "dt": 0 }
         duration: 0.3

@@ -28,6 +28,10 @@ class UserInterface(Systems.System):
                 self._ffi.callback("void*(void*)")(self.charset),
                 self._ffi.callback("void*(void*)")(self.open)
             ]
+            self._pinned_str = {
+                "mimetype": {},
+                "charset": {}
+            }
 
             self._struct = self._ffi.new("ULFileSystem*")
             self._struct.file_exists = self._pins[0]
@@ -48,20 +52,37 @@ class UserInterface(Systems.System):
             return Resources.file_system().exists(self.getPath(path))
 
         def mimetype(self, path) -> str:
-            return self._ffi.NULL  # TODO: deduce mimetype
+            py_path = self.getPath(path)
+            mime = "application/octet-stream"
+            match py_path.split(".")[-1]:
+                case "html" | "htm":
+                    mime = "text/html"
+                case "js":
+                    mime = "text/javascript"
+                case "css":
+                    mime = "text/css"
+            if py_path not in self._pinned_str["mimetype"]:
+                ul_mimetype = self._lib.ulCreateString(mime.encode("utf-8"))
+                self._pinned_str["mimetype"][py_path] = ul_mimetype
+            return self._pinned_str["mimetype"][py_path]
 
         def charset(self, path):
-            return self._ffi.NULL # TODO: extract charset
+            py_path = self.getPath(path)
+            if py_path not in self._pinned_str["charset"]:
+                ul_charset = self._lib.ulCreateString("utf-8".encode("utf-8"))
+                self._pinned_str["charset"][py_path] = ul_charset
+            return self._pinned_str["charset"][py_path]
 
         def open(self, path) -> bytes:
-            if path not in self._open_files:
-                x = self.getPath(path)
-                with Resources.file_system().open(self.getPath(path), "rb") as file:
+            py_path = self.getPath(path)
+            if py_path not in self._open_files:
+                with Resources.file_system().open(py_path, "rb") as file:
                     data = file.read()
-                    buffer = self._ffi.new("char[]", data)
+                    buffer = self._ffi.from_buffer(data)
+                    #buffer = self._ffi.new("char[]", data)
                     handle = self._ffi.new_handle(path)
                     callback = self._ffi.callback("void(void*, void*)")(self.onDestroy)
-                    self._open_files[path] = {
+                    self._open_files[py_path] = {
                         "buffer": buffer,
                         "handle": handle,
                         "callback": callback,
@@ -72,13 +93,14 @@ class UserInterface(Systems.System):
                             callback
                         )
                     }
-            return self._open_files[path]["ulBuffer"]
+            return self._open_files[py_path]["ulBuffer"]
 
         def onDestroy(self, user_data, data):
             if user_data is not self._ffi.NULL:
                 path = self._ffi.from_handle(user_data)
-                if path in self._open_files:
-                    del self._open_files[path]
+                py_path = self.getPath(path)
+                if py_path in self._open_files:
+                    del self._open_files[py_path]
 
 
     class FontWrapper:
@@ -135,8 +157,9 @@ class UserInterface(Systems.System):
         def onDestroy(self, user_data, data):
             if user_data != self._ffi.NULL:
                 handle = self._ffi.from_handle(user_data)
-                if handle in self._open_files:
-                    del self._open_files[handle]
+                path = self.getPath(handle)
+                if path in self._open_files:
+                    del self._open_files[path]
 
 
     def __init__(self, screen_dimensions: tuple[int, int], **kwargs):
@@ -179,12 +202,13 @@ class UserInterface(Systems.System):
         # Set and pin UL callbacks
         self._callbacks = self._callbacks | {
             "change_cursor": self._ffi.callback("void(void*,ULView,ULCursor)")(self.callbackChangeCursor),
-            "window_ready": self._ffi.callback("void(void*,ULView,unsigned long long, bool, ULString)")(self.callbackWindowReady)
+            "window_ready": self._ffi.callback("void(void*,ULView,unsigned long long, bool, ULString)")(self.callbackWindowReady),
+            "console_log": self._ffi.callback("void(void*, ULView, ULMessageSource, ULMessageLevel, ULString, unsigned int, unsigned int, ULString)")(self.callbackConsoleLog)
         }
         self._lib.ulViewSetChangeCursorCallback(self.view, self._callbacks["change_cursor"], self._ffi.NULL)
         self._lib.ulViewSetWindowObjectReadyCallback(self.view, self._callbacks["window_ready"], self._ffi.NULL)
+        self._lib.ulViewSetAddConsoleMessageCallback(self.view, self._callbacks["console_log"], self._ffi.NULL)
         
-
 
         # Regular old opengl
         self.gl_texture = GL.glGenTextures(1)
@@ -198,11 +222,9 @@ class UserInterface(Systems.System):
 
         self.ui_shader = await Resources.Shader.generate(name="ui_shader", permanent=True, fname="renderui.comp")
 
-        with Resources.file_system().open("interface/main.html") as file:
-            buffer = file.read()
-            u_str = self._lib.ulCreateString(buffer.encode("utf-8"))
-            self._lib.ulViewLoadHTML(self.view, u_str)
-            self._lib.ulDestroyString(u_str)
+        u_str = self._lib.ulCreateString("file://interface/main.html".encode("utf-8"))
+        self._lib.ulViewLoadURL(self.view, u_str)
+        self._lib.ulDestroyString(u_str)
 
         return True
 
@@ -214,21 +236,38 @@ class UserInterface(Systems.System):
         context = self._lib.ulViewLockJSContext(self.view)
         js_string = self._lib_wc.JSStringCreateWithUTF8CString(f"{func_name}(JSON.parse({json.dumps(json.dumps(data))}));".encode("utf-8"))
         js_result = self._lib_wc.JSEvaluateScript(context, js_string, self._ffi.NULL, self._ffi.NULL, 0, self._ffi.NULL)
-        if self._lib_wc.JSValueIsString(context, js_result):
-            js_copy = self._lib_wc.JSValueToStringCopy(context, js_result, self._ffi.NULL)
-            js_strlen = self._lib_wc.JSStringGetMaximumUTF8CStringSize(js_copy)
-            js_buffer = self._ffi.new("char[]", js_strlen)
-            self._lib_wc.JSStringGetUTF8CString(js_copy, js_buffer, js_strlen)
-            result = self._ffi.string(js_buffer).decode("utf-8")
-            self._lib_wc.JSStringRelease(js_copy)
+        result = self.helperJSExtractString(js_result, context)
         self._lib.JSStringRelease(js_string)
         self._lib.ulViewUnlockJSContext(self.view)
 
         return json.loads(result) if result else None
 
-    def jsHelloWorld(self, ctx, func, this, argc, args, exception):
-        print("Javascript says Hello World!")
+    def jsSnapMouse(self, ctx, func, this, argc, args, exception):
+        if argc > 0:
+            center_str = self.helperJSExtractString(args[0], ctx)
+            if center_str:
+                center = json.loads(center_str)
+                SDL.SDL_WarpMouseInWindow(None, int(center.get("x", 0)), int(center.get("y", 0)))
         return self._ffi.NULL
+
+    def helperJSExtractString(self, ref, context) -> str:
+        result = None
+        if self._lib_wc.JSValueIsString(context, ref):
+            js_copy = self._lib_wc.JSValueToStringCopy(context, ref, self._ffi.NULL)
+            if js_copy:
+                js_strlen = self._lib_wc.JSStringGetMaximumUTF8CStringSize(js_copy)
+                js_buffer = self._ffi.new("char[]", js_strlen)
+                self._lib_wc.JSStringGetUTF8CString(js_copy, js_buffer, js_strlen)
+                result = self._ffi.string(js_buffer).decode("utf-8")
+                self._lib_wc.JSStringRelease(js_copy)
+        return result
+
+    def callbackConsoleLog(self, user_data, caller, source, level, message, line_number, column_number, source_id):
+        context = self._lib.ulViewLockJSContext(caller)
+        py_source = self._ffi.string(self._lib.ulStringGetData(source_id)).decode("utf-8")
+        py_message = self._ffi.string(self._lib.ulStringGetData(message)).decode("utf-8")
+        print(f"\033[36m[{py_source} line: {line_number} col: {column_number}: \033[37m{py_message}")
+        self._lib.ulViewUnlockJSContext(caller)
 
     def callbackWindowReady(self, user_data, caller, frame_id, is_main_frame, url):
         context = self._lib.ulViewLockJSContext(self.view)
@@ -240,7 +279,7 @@ class UserInterface(Systems.System):
             self._lib_wc.JSObjectSetProperty(context, js_global, js_func_name, js_func_obj, 0, self._ffi.NULL)
             self._lib_wc.JSStringRelease(js_func_name)
         
-        makeJSFunction("hello_world", "hello_world", self.jsHelloWorld)
+        makeJSFunction("snapMouse", "snapMouse", self.jsSnapMouse)
         self._lib.ulViewUnlockJSContext(self.view)
 
     def callbackChangeCursor(self, user_data, caller, cursor): # TODO: actually change cursor, this is test/placeholder
@@ -253,12 +292,12 @@ class UserInterface(Systems.System):
                     print("?")
 
     @Systems.on(Events.Logic, Systems.Priority.LOWEST)
-    async def onLogicStep(self, event: Events.Logic) -> bool:
+    async def onLogicStep(self, event: Events.Logic) -> Events.Result:
         self._lib.ulUpdate(self.renderer)
-        return False
+        return Events.Result.CONTINUE
 
     @Systems.on(Events.Render, Systems.Priority.LOWEST)
-    async def onRenderStep(self, event: Events.Render) -> bool:
+    async def onRenderStep(self, event: Events.Render) -> Events.Result:
         self._lib.ulRender(self.renderer)
         surface = self._lib.ulViewGetSurface(self.view)
         bounds = self._lib.ulSurfaceGetDirtyBounds(surface)
@@ -285,22 +324,28 @@ class UserInterface(Systems.System):
         GL.glNamedFramebufferReadBuffer(event.framebuffer.fbo, GL.GL_COLOR_ATTACHMENT4)
         GL.glBlitNamedFramebuffer(event.framebuffer.fbo, 0, 0, 0, event.render_size[0], event.render_size[1], 0, 0, event.resolution[0], event.resolution[1], GL.GL_COLOR_BUFFER_BIT, GL.GL_NEAREST)
 
-        #System.immediateEvent(PostRender())
         SDL.SDL_GL_SwapWindow(event.window)
 
 
-        return False
+        return Events.Result.CONTINUE
 
     @Systems.on(Events.FromSDL, Systems.Priority.HIGHEST)
-    async def onSDLEvent(self, event: Events.FromSDL) -> bool:
-        ul_event = None
+    async def onSDLEvent(self, event: Events.FromSDL) -> Events.Result:
+        events = []
+        ul_str_empty = self._lib.ulCreateString("".encode("utf-8"))
+        strings = [ul_str_empty]
         match event.sdl_event.type:
             case SDL.SDL_MOUSEMOTION:
-                ul_event = self._lib.ulCreateMouseEvent(
-                    self._lib.kMouseEventType_MouseMoved,
-                    event.sdl_event.motion.x,
-                    event.sdl_event.motion.y,
-                    self._lib.kMouseEventType_MouseMoved
+                events.append(
+                    (
+                        "mouse",
+                        self._lib.ulCreateMouseEvent(
+                            self._lib.kMouseEventType_MouseMoved,
+                            event.sdl_event.motion.x,
+                            event.sdl_event.motion.y,
+                            self._lib.kMouseEventType_MouseMoved
+                        )
+                    )
                 )
             case SDL.SDL_MOUSEBUTTONDOWN | SDL.SDL_MOUSEBUTTONUP:
                 evt_type = self._lib.kMouseEventType_MouseDown
@@ -316,13 +361,144 @@ class UserInterface(Systems.System):
                     case SDL.SDL_BUTTON_RIGHT:
                         button = self._lib.kMouseButton_Right
 
-                ul_event = self._lib.ulCreateMouseEvent(
-                    evt_type,
-                    event.sdl_event.motion.x,
-                    event.sdl_event.motion.y,
-                    button
+                events.append(
+                    (
+                        "mouse",
+                        self._lib.ulCreateMouseEvent(
+                            evt_type,
+                            event.sdl_event.motion.x,
+                            event.sdl_event.motion.y,
+                            button
+                        )
+                    )
                 )
-        if ul_event:
-            self._lib.ulViewFireMouseEvent(self.view, ul_event)
-            self._lib.ulDestroyMouseEvent(ul_event)
-        return False
+            case SDL.SDL_CONTROLLERBUTTONDOWN | SDL.SDL_CONTROLLERBUTTONUP:
+                down = event.sdl_event.type == SDL.SDL_CONTROLLERBUTTONDOWN
+                match event.sdl_event.cbutton.button:
+                    case SDL.SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+                        events.append(
+                            (
+                                "key",
+                                self._lib.ulCreateKeyEvent(
+                                    self._lib.kKeyEventType_RawKeyDown if down else self._lib.kKeyEventType_KeyUp,
+                                    0,
+                                    self._lib.GK_TAB,
+                                    0,
+                                    ul_str_empty,
+                                    ul_str_empty,
+                                    False,
+                                    False,
+                                    False
+                                )
+                            )
+                        )
+                    case SDL.SDL_CONTROLLER_BUTTON_A:
+                        if down:
+                            ul_key_str = self._lib.ulCreateString("\r".encode("utf-8"))
+                            strings.append(ul_key_str)
+                            events.append(
+                                (
+                                    "key",
+                                    self._lib.ulCreateKeyEvent(
+                                        self._lib.kKeyEventType_RawKeyDown,
+                                        0,
+                                        self._lib.GK_RETURN,
+                                        0,
+                                        ul_str_empty,
+                                        ul_str_empty,
+                                        False,
+                                        False,
+                                        False
+                                    )
+                                )
+                            )
+                            events.append(
+                                (
+                                    "key",
+                                    self._lib.ulCreateKeyEvent(
+                                        self._lib.kKeyEventType_Char,
+                                        0,
+                                        self._lib.GK_RETURN,
+                                        0,
+                                        ul_key_str,
+                                        ul_key_str,
+                                        False,
+                                        False,
+                                        False
+                                    )
+                                )
+                            )
+                        else:
+                            events.append(
+                                (
+                                    "key",
+                                    self._lib.ulCreateKeyEvent(
+                                        self._lib.kKeyEventType_KeyUp,
+                                        0,
+                                        self._lib.GK_RETURN,
+                                        0,
+                                        ul_str_empty,
+                                        ul_str_empty,
+                                        False,
+                                        False,
+                                        False
+                                    )
+                                )
+                            )
+                    case SDL.SDL_CONTROLLER_BUTTON_B:
+                        events.append(
+                            (
+                                "key",
+                                self._lib.ulCreateKeyEvent(
+                                    self._lib.kKeyEventType_RawKeyDown if down else self._lib.kKeyEventType_KeyUp,
+                                    0,
+                                    self._lib.GK_ESCAPE,
+                                    0,
+                                    ul_str_empty,
+                                    ul_str_empty,
+                                    False,
+                                    False,
+                                    False
+                                )
+                            )
+                        )
+                    case SDL.SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+                        events.append(
+                            (
+                                "key",
+                                self._lib.ulCreateKeyEvent(
+                                    self._lib.kKeyEventType_RawKeyDown if down else self._lib.kKeyEventType_KeyUp,
+                                    self._lib.kMod_ShiftKey,
+                                    self._lib.GK_TAB,
+                                    0,
+                                    ul_str_empty,
+                                    ul_str_empty,
+                                    False,
+                                    False,
+                                    False
+                                )
+                            )
+                        )
+        for ev_type, evt in events:
+            match ev_type:
+                case "mouse":
+                    self._lib.ulViewFireMouseEvent(self.view, evt)
+                    self._lib.ulDestroyMouseEvent(evt)
+                case "key":
+                    self._lib.ulViewFireKeyEvent(self.view, evt)
+                    self._lib.ulDestroyKeyEvent(evt)
+        for string in strings:
+            self._lib.ulDestroyString(string)
+
+        return Events.Result.CONTINUE
+
+    @Systems.on(Events.CombatTick, Systems.Priority.DEFAULT)
+    async def onCombatTick(self, event: Events.CombatTick) -> Events.Result:
+        ticks = {}
+        for eid, combatant in Components.Combatant.getAll():
+            ticks[eid] = {
+                "status": combatant.status,
+                "progress": combatant.progress
+            }
+        self.callJSFunc("Combat.onTickUpdate", ticks)
+        return Events.Result.CONTINUE

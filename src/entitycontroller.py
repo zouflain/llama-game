@@ -7,7 +7,7 @@ class EntityController(Systems.System):
         self.current_entity: int = current_entity
 
     @Systems.on(Events.GenerateEntity, Systems.Priority.LOWEST)
-    async def generateEntity(self, event: Events.GenerateEntity) -> bool:
+    async def generateEntity(self, event: Events.GenerateEntity) -> Events.Result:
         self.current_entity += 1
         event.entity = self.current_entity
-        return False
+        return Events.Result.CONTINUE

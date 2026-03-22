@@ -12,12 +12,13 @@ import yaml
 
 class Event:
     class Result(int, enum.Enum):
+        FINISHED = 2
         CONTINUE = 1
         CONSUME = 0
         ABORT = -1
 
     def __init__(self, **kwargs):
-        self._status: Result = Event.Result.CONTINUE
+        self._result: Result = Event.Result.CONTINUE
 
     def __init_subclass__(cls, **kwargs):
         event_tag = f"!{cls.__name__}"
@@ -27,6 +28,14 @@ class Event:
             return cls(**fields)
 
         yaml.SafeLoader.add_constructor(event_tag, constructor)
+
+    @property
+    def result(self) -> Event.Result:
+        return self._result
+
+
+# Syntatic Sugar
+Result = Event.Result
 
 
 ### BOILER PLATE DYNAMIC PACKAGE ###
@@ -55,7 +64,7 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}): '''{ast.get_docstring(node)} or '...''''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"
