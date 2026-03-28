@@ -34,28 +34,38 @@ class FromSDL(Events.Event):
         self.sdl_event = sdl_event
 
 class Render(Events.Event):
-    def __init__(self, dt: float, abs_time: float, frequency: float, window, resolution: tuple[int, int], render_size: tuple[int, int], framebuffer, **kwargs):
+    def __init__(self, dt: float, abs_time: float, time_step: float, window, resolution: tuple[int, int], render_size: tuple[int, int], framebuffer, view = None, **kwargs):
         '''Important rendering event'''
         super().__init__(**kwargs)
         self.dt: float = dt
         self.abs_time: float = abs_time
-        self.frequency: float = frequency
+        self.time_step: float = time_step
         self.window: SDL.SDL_Window = window
         self.resolution: tuple[int, int] = resolution
         self.render_size: tuple[int, int] = render_size
         self.framebuffer: Resources.Framebuffer = framebuffer
+        self.view = view
 
 class Logic(Events.Event):
-    def __init__(self, dt: float, abs_time: float, frequency: float, **kwargs):
+    def __init__(self, dt: float, abs_time: float, time_step: float, **kwargs):
         super().__init__(**kwargs)
         self.dt: float = dt
         self.abs_time: float = abs_time
-        self.frequency: float = frequency
+        self.time_step: float = time_step
 
 class GenerateEntity(Events.Event):
     def __init__(self, entity: int = None, **kwargs):
         super().__init__(**kwargs)
         self.entity = entity
+
+class CameraUpdate(Events.Event):
+    def __init__(self, distance: float = None, sharpness: float = None, target_center: np_array = None, **kwargs):
+        self.target_center = target_center
+        self.distance = distance
+        self.sharpness = sharpness
+
+
+class Player(Components.Component): pass
 
 class Game:
     class Constants(int, Enum):
@@ -162,16 +172,41 @@ class Game:
         await Systems.register(Systems.Battle(), render_size=self.target_resolution)
         await Systems.register(Systems.EntityController(150))
         await Systems.register(Systems.UserInterface(self.screen_dimensions))
+        await Systems.register(Systems.CameraSystem())
         
-        await Systems.immediateEvent(Events.BattleBegin)
+        await Systems.immediateEvent(Events.BattleBegin(arena_size=(1000,1000)))
 
         player_evt = await Systems.immediateEvent(Events.GenerateEntity())
-        await Systems.immediateEvent(Events.SpawnCombatant(player_evt.entity, 0))
+        Components.Player(player_evt.entity)
+        await Systems.immediateEvent(Events.SpawnCombatant(
+            eid=player_evt.entity,
+            party_id=player_evt.entity,
+            mannequin="mage",
+            active_meshes=[
+                mesh for mesh in Resources.Renderable["mage"].meshes.keys() if mesh not in [
+                    "Icosphere", "Spellbook", "Spellbook_open", "Mage_Hat",
+                    "Mage_Cape", "2H_Staff", "1H_Wand"
+                ]
+            ]
+        ))
         Components.Combatant[player_evt.entity].posture = Components.Combatant.Posture.EVASIVE
         for i in range(2):
             enemy_evt = await Systems.immediateEvent(Events.GenerateEntity())
-            await Systems.immediateEvent(Events.SpawnCombatant(enemy_evt.entity, 0))
-            Components.Combatant[enemy_evt.entity].party_id = 10
+            await Systems.immediateEvent(Events.SpawnCombatant(
+                eid=enemy_evt.entity,
+                party_id=player_evt.entity+1,
+                mannequin="mage",
+                active_meshes=[
+                    mesh for mesh in Resources.Renderable["mage"].meshes.keys() if mesh not in [
+                        "Icosphere", "Spellbook", "Spellbook_open",# "Mage_Hat",
+                        "Mage_Cape", "2H_Staff", "1H_Wand"
+                    ]
+                ]
+            ))
+            combatant = Components.Combatant[enemy_evt.entity]
+            combatant.target = player_evt.entity
+            if i == 0:
+                combatant.active_meshes.extend(["Icosphere", "Spellbook", "Spellbook_open"])
 
         #####END TEST CODE#####
 
@@ -205,7 +240,7 @@ class Game:
 
                 dt = now - task.last_run
                 if dt >= 1.0/task.interval:
-                    Systems.raiseEvent(task.event_type(dt=dt, abs_time=now, frequency=task.interval, **task.kwargs))
+                    Systems.raiseEvent(task.event_type(dt=dt, abs_time=now, time_step=1./task.interval, **task.kwargs))
                     task.last_run = now
 
             # Iterate over queued events

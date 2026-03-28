@@ -1,0 +1,17 @@
+paths:
+  - name: iaus
+    path: res/iaus
+  - name: shaders
+    path: res/shaders
+  - name: models
+    path: res/models
+  - name: pallettes
+    path: res/pallettes
+  - name: framedata
+    path: res/framedata
+  - name: fmod
+    path: res/fmod
+  - name: fonts
+    path: res/fonts
+  - name: interface
+    path: res/interface

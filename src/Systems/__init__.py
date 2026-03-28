@@ -65,17 +65,17 @@ class System:
 
     @staticmethod
     async def immediateEvent(event: Event) -> Event:
-        event._result = Event.Result.CONTINUE
+        event.setResult(Event.Result.CONTINUE)
         for listener in System.__listener_cache[type(event)]:
-            result = await listener.execute(event)
-            event._result = result
-            match result:
+            event.setResult(await listener.execute(event))
+            match event.result:
                 case Event.Result.ABORT | Event.Result.CONSUME:
                     break
                 case Event.Result.CONTINUE:
                     pass # for now, eventually log it!
         else:
-           event._result = Event.Result.FINISHED
+            if event.result == Event.Result.CONTINUE:
+               event.setResult(Event.Result.FINISHED)
 
         return event
 

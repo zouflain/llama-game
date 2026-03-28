@@ -10,4 +10,4 @@ class EntityController(Systems.System):
     async def generateEntity(self, event: Events.GenerateEntity) -> Events.Result:
         self.current_entity += 1
         event.entity = self.current_entity
-        return Events.Result.CONTINUE
+        return event.result

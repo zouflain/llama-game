@@ -12,10 +12,11 @@ import yaml
 
 class Event:
     class Result(int, enum.Enum):
-        FINISHED = 2
-        CONTINUE = 1
-        CONSUME = 0
-        ABORT = -1
+        FINISHED = enum.auto() # All listeners allowed continue
+        CONTINUE = enum.auto() # Currently processing
+        CONSUME = enum.auto() # A listener prevented others
+        ABORT = enum.auto() # A listener prevented others, reporting failure
+        TERMINATE = enum.auto() # a listener is allowing others, but reports failure
 
     def __init__(self, **kwargs):
         self._result: Result = Event.Result.CONTINUE
@@ -32,6 +33,9 @@ class Event:
     @property
     def result(self) -> Event.Result:
         return self._result
+
+    def setResult(self, result: Event.Result) -> None: #Done for explictness (also logging?)
+        self._result = result
 
 
 # Syntatic Sugar

@@ -213,6 +213,8 @@ void ulViewSetChangeCursorCallback(ULView view, ULChangeCursorCallback callback,
 
 //Javascript
 typedef void (*ULWindowObjectReadyCallback)(void* user_data, ULView caller, unsigned long long frame_id, bool is_main_frame, ULString url);
+typedef void (*ULDOMReadyCallback)(void* user_data, ULView caller, unsigned long long frame_id, bool is_main_frame, ULString url);
 void* ulViewLockJSContext(ULView view);
 void ulViewUnlockJSContext(ULView view);
 void ulViewSetWindowObjectReadyCallback(ULView view, ULWindowObjectReadyCallback callback, void* user_data);
+void ulViewSetDOMReadyCallback(ULView view, ULDOMReadyCallback callback, void* user_data);

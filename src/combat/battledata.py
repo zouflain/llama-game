@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation
 from enum import Enum, auto as EnumAuto
 import Systems, Events, Components, Resources
 
@@ -21,6 +22,12 @@ class BattleAnimator(Components.Component):
 
 
 class Combatant(Components.Component):
+    class Relationship(int, Enum):
+        SELF = 0
+        TARGET = 1
+        PARTY = 2
+        NONPARTY = 3
+
     class Status(int, Enum):
         MANUEVER = EnumAuto()
         ACT = EnumAuto()
@@ -41,14 +48,16 @@ class Combatant(Components.Component):
         self.active_meshes: list[str] = active_meshes or []
         self.target: int = None
         self.action = None
-        self.facing = 0
+        self.forward:np.array = np.array([1, 0, 0], dtype=np.float32)
         self.scale = 70
         self.frame = 0
-        self.speed = 100
-        self.size:float = 100
+        self.progress: float = 0
+        self.progress_speed = 90.
+        self.move_speed:float = 200.
+        self.turn_speed:float = 360.
+        self.size: float = 100
         self.status = Combatant.Status.MANUEVER
         self.posture = Combatant.Posture.AGGRESSIVE
-        self.progress: float = 0
         self.animations = [
             {
                 "start_frame": self.frame,
@@ -58,14 +67,35 @@ class Combatant(Components.Component):
             }
         ]
 
+    @property
+    def model(self) -> np.array:
+        model = np.eye(4)
+        model[:3, :3] = Rotation.from_euler('z', np.atan2(self.forward[1], self.forward[0]), degrees=False).as_matrix() * np.array([self.scale]*3)[np.newaxis, :]
+        model[3, :3] = self.pos
+        model[3, 3] = 1.0
+        return model
+
+
 
 class Character(Components.Component): pass
 
 
 class CombatTick(Events.Event):
-    def __init__(self, dt: float, **kwargs):
+    def __init__(self, dt: float, dilation: float = 1, view = None, last_projection = None, last_resolution = None, **kwargs):
         super().__init__(**kwargs)
         self.dt: float = dt
+        self.dilation: float = dilation
+        self.view = view
+        self.projection = last_projection
+        self.last_resolution = last_resolution
+
+
+class CombatGUITick(Events.Event):
+    def __init__(self, dt: float, view = None, projection = None, resolution = None):
+        self.dt: float = dt
+        self.view = view
+        self.projection = projection
+        self.resolution = resolution
 
 
 class CombatManueverPhase(Events.Event):
@@ -73,13 +103,40 @@ class CombatManueverPhase(Events.Event):
         super().__init__(**kwargs)
         self.dt: float = dt
 
+class CombatantReady(Events.Event):
+    def __init__(self, eid: int, **kwargs):
+        self.eid: int  = eid
+
 
 class SpawnCombatant(Events.Event):
-    def __init__(self, eid: int, party_id: int):
+    def __init__(self, eid: int, party_id: int, mannequin: str, active_meshes: list[str]):
         self.eid: int = eid
         self.party_id: int = party_id
         self.combatant = None
+        self.mannequin = mannequin
+        self.active_meshes = active_meshes.copy()
 
-class BattleBegin(Events.Event): pass
+class BattleBegin(Events.Event):
+    def __init__(self, arena_size: tuple[int, int], seed: int = None, **kwargs):
+        super().__init__(**kwargs)
+        self.arena_size: tupe[int, int] = arena_size
+        self.seed: int = seed
 
 class BattleEnd(Events.Event): pass
+
+class AICombatantReady(Events.Event):
+    def __init__(self, eid: int, **kwargs):
+        super().__init__(**kwargs)
+        self.eid: int = eid
+
+class PlayerCombatantReady(Events.Event):
+    def __init__(self, eid: int, **kwargs):
+        super().__init__(**kwargs)
+        self.eid: int = eid
+
+class PlayerCombatantCommand(Events.Event):
+    def __init__(self, eid: int, posture: int, target: int, **kwargs):
+        super().__init__(**kwargs)
+        self.eid: int = eid
+        self.posture: int = posture
+        self.target = target

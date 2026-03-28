@@ -1,15 +1,85 @@
-const Combat = {
-    onTickUpdate: function(data){
-        for(const [eid, details] of Object.entries(data)){
-            //console.log(eid, details);
+class CombatUI{
+    constructor(parent){
+        this.element = null;
+        this.entities = {};
+        this.active_entity = null;
+        this.active_ui = null;
+        this.parent = parent;
+        this.radials = {
+            main: new Radial(
+                {inner: 250, outer: 350},
+                [
+                    {
+                        name: "Test1",
+                        click: ()=>{
+                            let entity = this.entities[this.active_entity];
+                            entity.target = 152;
+                            issueCombatCommand(JSON.stringify({
+                                eid: this.active_entity,
+                                posture: entity.posture,
+                                target: entity.target
+                            }));
+                            this.element.hidden = true;
+                        }
+                    },
+                    {
+                        name: "Test2",
+                        click: ()=>{}
+                    },
+                    {
+                        name: "Test3",
+                        click: ()=>{}
+                    }
+                ],
+                {"--color-fill": "rgba(0,0,255,0.5)", "--color-hover": "rgba(255,0,0,1)", "--opacity": "60%"}
+            )
         }
-    },
-    init: function(data){
+    }
+    render(hide=false){
+        if(this.element!= null){
+            this.element.remove();
+            this.element = null;
+        }
+        this.element = this.parent.appendChild(document.createRange().createContextualFragment(`
+            <div class="combat-ui">
+                <style class="retain">
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    color: green;
+                </style>
+            </div>                
+        `).firstElementChild);
+        let outer_this = this;
+        if(this.active_ui){
+            this.active_ui.render(this.element, this.entities[this.active_entity].pos);
+        }
+        
+        if(hide){
+            this.element.hidden = true;
+        }
 
-    },
-    UI: class{
-        constructor(){
-
+        return this.element;
+    }
+    init(data){
+        Combat.Postures = data.postures;
+        //this.active_ui = this.radials.main;
+    }
+    setReadyEntity(data){
+        this.active_entity = Number(data.eid);
+        this.active_ui = this.radials.main;
+        this.render(false);
+    }
+    onTickUpdate(data){
+        document.querySelectorAll(".inkblot").forEach(el=>{
+            el.remove();
+        });
+        this.entities = {};
+        for(const [eid, details] of Object.entries(data)){
+            this.entities[Number(eid)] = details;
+            if(this.active_ui && this.active_entity){
+                this.active_ui.position(this.entities[this.active_entity].pos);
+            }
         }
     }
 }

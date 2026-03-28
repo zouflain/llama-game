@@ -1,6 +1,7 @@
 from __future__ import annotations
 from cffi import FFI
 from enum import Enum, auto as EnumAuto
+import numpy as np
 import OpenGL.GL as GL
 import sdl2 as SDL
 import platform
@@ -167,6 +168,7 @@ class UserInterface(Systems.System):
         self._ffi = None
         self._lib = None
         self._lib_wc = None
+        self.dom_ready = False
         self.screen_dimensions: tuple[int, int] = screen_dimensions
         self.gl_texture: int = 0
         self._callbacks = {}
@@ -197,18 +199,20 @@ class UserInterface(Systems.System):
         self._lib.ulViewConfigSetIsTransparent(view_config, True)
         self.view = self._lib.ulCreateView(self.renderer, self.screen_dimensions[0], self.screen_dimensions[1], view_config, self._ffi.NULL)
         self._lib.ulDestroyViewConfig(view_config)
-        self._lib.ulUpdate(self.renderer) # Ensure this happens at LEAST ONCE before first render
+        self._lib.ulUpdate(self.renderer)
 
         # Set and pin UL callbacks
         self._callbacks = self._callbacks | {
             "change_cursor": self._ffi.callback("void(void*,ULView,ULCursor)")(self.callbackChangeCursor),
             "window_ready": self._ffi.callback("void(void*,ULView,unsigned long long, bool, ULString)")(self.callbackWindowReady),
-            "console_log": self._ffi.callback("void(void*, ULView, ULMessageSource, ULMessageLevel, ULString, unsigned int, unsigned int, ULString)")(self.callbackConsoleLog)
+            "console_log": self._ffi.callback("void(void*, ULView, ULMessageSource, ULMessageLevel, ULString, unsigned int, unsigned int, ULString)")(self.callbackConsoleLog),
+            "dom_ready": self._ffi.callback("void(void*, ULView, unsigned long long, bool, ULString)")(self.callbackDomReady)
         }
         self._lib.ulViewSetChangeCursorCallback(self.view, self._callbacks["change_cursor"], self._ffi.NULL)
         self._lib.ulViewSetWindowObjectReadyCallback(self.view, self._callbacks["window_ready"], self._ffi.NULL)
         self._lib.ulViewSetAddConsoleMessageCallback(self.view, self._callbacks["console_log"], self._ffi.NULL)
-        
+        self._lib.ulViewSetDOMReadyCallback(self.view, self._callbacks["dom_ready"], self._ffi.NULL)
+       
 
         # Regular old opengl
         self.gl_texture = GL.glGenTextures(1)
@@ -224,7 +228,10 @@ class UserInterface(Systems.System):
 
         u_str = self._lib.ulCreateString("file://interface/main.html".encode("utf-8"))
         self._lib.ulViewLoadURL(self.view, u_str)
-        self._lib.ulDestroyString(u_str)
+        self._lib.ulDestroyString(u_str) 
+        while not self.dom_ready:
+            self._lib.ulUpdate(self.renderer) # Ensure this happens at LEAST ONCE before first render
+            self._lib.ulRender(self.renderer) # Then render, so javascript can be executed
 
         return True
 
@@ -241,6 +248,14 @@ class UserInterface(Systems.System):
         self._lib.ulViewUnlockJSContext(self.view)
 
         return json.loads(result) if result else None
+
+    def jsIssueCombatCommand(self, ctx, func, this, argc, args, exception):
+        if argc > 0:
+            data_str = self.helperJSExtractString(args[0], ctx)
+            if data_str:
+                data = json.loads(data_str)
+                Systems.raiseEvent(Events.PlayerCombatantCommand(**data))
+        return self._ffi.NULL
 
     def jsSnapMouse(self, ctx, func, this, argc, args, exception):
         if argc > 0:
@@ -269,6 +284,9 @@ class UserInterface(Systems.System):
         print(f"\033[36m[{py_source} line: {line_number} col: {column_number}: \033[37m{py_message}")
         self._lib.ulViewUnlockJSContext(caller)
 
+    def callbackDomReady(self, user_data, caller, frame_id, is_main_frame, url):
+        self.dom_ready = True
+
     def callbackWindowReady(self, user_data, caller, frame_id, is_main_frame, url):
         context = self._lib.ulViewLockJSContext(self.view)
         def makeJSFunction(js_name, cb_name, cb_func):
@@ -280,6 +298,7 @@ class UserInterface(Systems.System):
             self._lib_wc.JSStringRelease(js_func_name)
         
         makeJSFunction("snapMouse", "snapMouse", self.jsSnapMouse)
+        makeJSFunction("issueCombatCommand", "issueCombatCommand", self.jsIssueCombatCommand)
         self._lib.ulViewUnlockJSContext(self.view)
 
     def callbackChangeCursor(self, user_data, caller, cursor): # TODO: actually change cursor, this is test/placeholder
@@ -291,10 +310,10 @@ class UserInterface(Systems.System):
                 case _:
                     print("?")
 
-    @Systems.on(Events.Logic, Systems.Priority.LOWEST)
+    @Systems.on(Events.Logic, Systems.Priority.HIGHEST)
     async def onLogicStep(self, event: Events.Logic) -> Events.Result:
         self._lib.ulUpdate(self.renderer)
-        return Events.Result.CONTINUE
+        return event.result
 
     @Systems.on(Events.Render, Systems.Priority.LOWEST)
     async def onRenderStep(self, event: Events.Render) -> Events.Result:
@@ -327,7 +346,7 @@ class UserInterface(Systems.System):
         SDL.SDL_GL_SwapWindow(event.window)
 
 
-        return Events.Result.CONTINUE
+        return event.result
 
     @Systems.on(Events.FromSDL, Systems.Priority.HIGHEST)
     async def onSDLEvent(self, event: Events.FromSDL) -> Events.Result:
@@ -490,15 +509,51 @@ class UserInterface(Systems.System):
         for string in strings:
             self._lib.ulDestroyString(string)
 
-        return Events.Result.CONTINUE
+        return event.result
+
+    async def tickHelper(self, view, projection, resolution) -> None:
+        entities = {}
+        for eid, combatant in Components.Combatant.getAll():
+            clip_space =  np.array(projection, dtype=np.float32).reshape(4,4) @ np.array(view, dtype=np.float32).reshape(4,4) @ np.append(combatant.pos, 1)
+            norm_device = clip_space[:3]/clip_space[3]
+            screen_pos = (norm_device[:2] + 1.)/2.
+            entities[eid] = {
+                "status": combatant.status,
+                "progress": combatant.progress,
+                "pos": {
+                    "x": screen_pos[0]*resolution[0],
+                    "y": screen_pos[1]*resolution[1]
+                },
+                "posture": combatant.posture,
+                "target": combatant.target
+            }
+        self.callJSFunc("guis.combat.onTickUpdate", entities)
+
+    @Systems.on(Events.CombatGUITick, Systems.Priority.DEFAULT)
+    async def onCombatGUITick(self, event: Events.CombatGUITick) -> Events.Result:
+        await self.tickHelper(event.view, event.projection, event.resolution)
+        return event.result
 
     @Systems.on(Events.CombatTick, Systems.Priority.DEFAULT)
     async def onCombatTick(self, event: Events.CombatTick) -> Events.Result:
-        ticks = {}
-        for eid, combatant in Components.Combatant.getAll():
-            ticks[eid] = {
-                "status": combatant.status,
-                "progress": combatant.progress
+        await self.tickHelper(event.view, event.projection, event.last_resolution)
+        return event.result
+
+
+    @Systems.on(Events.BattleBegin, Systems.Priority.LOWEST)
+    async def onBattleBegin(self, event: Events.BattleBegin) -> Event.Result:
+        init_data = {
+            "postures": {
+                str(en).split(".")[-1]: int(en) for en in Components.Combatant.Posture
             }
-        self.callJSFunc("Combat.onTickUpdate", ticks)
-        return Events.Result.CONTINUE
+        }
+        self.callJSFunc("guis.combat.init", init_data)
+        return event.result
+
+    @Systems.on(Events.PlayerCombatantReady, Systems.Priority.LOWEST)
+    async def onPlayerReady(self, event: Events.PlayerCombatantReady) -> Event.Result:
+        combatant = Components.Combatant[event.eid]
+        self.callJSFunc("guis.combat.setReadyEntity", {
+            "eid": event.eid,
+        })
+        return event.result
