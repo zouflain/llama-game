@@ -11,6 +11,7 @@ import yaml
 
 
 class Event:
+    __known_events: dict = {}
     class Result(int, enum.Enum):
         FINISHED = enum.auto() # All listeners allowed continue
         CONTINUE = enum.auto() # Currently processing
@@ -22,6 +23,7 @@ class Event:
         self._result: Result = Event.Result.CONTINUE
 
     def __init_subclass__(cls, **kwargs):
+        Event.__known_events[cls.__name__] = cls
         event_tag = f"!{cls.__name__}"
 
         def constructor(loader, node):
@@ -68,11 +70,11 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}): '''{ast.get_docstring(node)} or '...''''\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n'''{ast.get_docstring(node)} or '...''''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"
-                                stub_lines.append(f"\tdef {item.name}({signature}): '''{ast.get_docstring(item) or '...'}'''\n\n")
+                                stub_lines.append(f"\tdef {item.name}({signature}):\n'''{ast.get_docstring(item) or '...'}'''\n\n")
                         
         except Exception:
             continue

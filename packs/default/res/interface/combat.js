@@ -34,6 +34,9 @@ class CombatUI{
                 {"--color-fill": "rgba(0,0,255,0.5)", "--color-hover": "rgba(255,0,0,1)", "--opacity": "60%"}
             )
         }
+        window.GameEventBus.on("CombatUpdate", this.onTickUpdate.bind(this));
+        window.GameEventBus.on("CombatReadyEntity", this.setReadyEntity.bind(this));
+        window.GameEventBus.on("CombatInit", this.init.bind(this));
     }
     render(hide=false){
         if(this.element!= null){
@@ -62,8 +65,7 @@ class CombatUI{
         return this.element;
     }
     init(data){
-        Combat.Postures = data.postures;
-        //this.active_ui = this.radials.main;
+        this.postures = data.postures;
     }
     setReadyEntity(data){
         this.active_entity = Number(data.eid);
@@ -71,11 +73,8 @@ class CombatUI{
         this.render(false);
     }
     onTickUpdate(data){
-        document.querySelectorAll(".inkblot").forEach(el=>{
-            el.remove();
-        });
         this.entities = {};
-        for(const [eid, details] of Object.entries(data)){
+        for(const [eid, details] of Object.entries(data.entities)){
             this.entities[Number(eid)] = details;
             if(this.active_ui && this.active_entity){
                 this.active_ui.position(this.entities[this.active_entity].pos);

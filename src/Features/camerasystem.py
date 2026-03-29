@@ -17,9 +17,9 @@ class CameraSystem(Systems.System):
     async def appendView(self, event: Events.Render) -> Events.Result:
         # exponentially approach center
         self.source_center += (self.target_center-self.source_center) * np.exp(-self.sharpness*event.time_step)
-        yaw = 45
+        yaw = 225
         pitch = 30
-        eye = self.source_center + Rotation.from_euler("zy", [yaw, -pitch], degrees=True).apply(np.array([self.distance, 0, 0], dtype=np.float32))
+        eye = self.source_center + Rotation.from_euler("zy", [yaw, pitch], degrees=True).apply(np.array([self.distance, 0, 0], dtype=np.float32))
         self.last_view = GLM.lookAt(tuple(eye.tolist()), tuple(self.source_center.tolist()), (0, 0, 1))
         event.view = self.last_view
         return event.result

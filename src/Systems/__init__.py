@@ -16,9 +16,11 @@ class System:
     __active_systems: list[System] = []
     __pending_events: list[Event] = []
     __listener_cache: dict[Type[Event], list[System.Listner]] = defaultdict(list)
+    __suppressed_systems: set[tuple[Type, Type]] = set()
 
     @dataclass
     class Listener:
+        system: System
         priority: int
         callback: Callable[[Event, ...], Event.Result]
         kwargs: dict = field(default_factory=dict)
@@ -34,7 +36,7 @@ class System:
             attr = getattr(self, name)
             if hasattr(attr, "_listener"):
                 metadata = attr._listener
-                self.addListener(metadata["cls"], metadata["priority"], attr, **metadata["kwargs"])
+                self.addListener(metadata["event"], metadata["priority"], attr, **metadata["kwargs"])
 
     @staticmethod
     def __recache(event_type: Type[Event]) -> None:
@@ -47,15 +49,15 @@ class System:
         System.__listener_cache[event_type] = listeners
 
 
-    def addListener(self, cls: Type, priority: int, callback: Callable[[Event, ...], bool], **kwargs) -> None:
-        self.listeners[cls].append(System.Listener(priority, callback, **kwargs))
-        System.__recache(cls)
+    def addListener(self, event: Type, priority: int, callback: Callable[[Event, ...], bool], **kwargs) -> None:
+        self.listeners[event].append(System.Listener(self, priority, callback, **kwargs))
+        System.__recache(event)
 
     @staticmethod
-    def on(cls: Type[Event], priority: int, **kwargs):
+    def on(event: Type[Event], priority: int, **kwargs):
         def decorator(callback: Callable[[Event, ...], bool]):
             callback._listener = {
-                "cls": cls,
+                "event": event,
                 "priority": priority,
                 "kwargs": kwargs
             }
@@ -67,6 +69,9 @@ class System:
     async def immediateEvent(event: Event) -> Event:
         event.setResult(Event.Result.CONTINUE)
         for listener in System.__listener_cache[type(event)]:
+            if (type(event), type(listener.system)) in System.__suppressed_systems:
+                continue
+
             event.setResult(await listener.execute(event))
             match event.result:
                 case Event.Result.ABORT | Event.Result.CONSUME:
@@ -106,6 +111,14 @@ class System:
         for event_type in system.listeners.keys():
             System.__recache(event_type)
 
+    @staticmethod
+    def suppress(event: Type, system: Type) -> None:
+        System.__suppressed_systems.add((event, system))
+
+    @staticmethod
+    def unsuppress(event: Type, system: Type) -> None:
+        System.__suppressed_systems.remove((event, system))
+
     async def boot(self, **kwargs) -> bool:
         return True
 
@@ -119,6 +132,8 @@ yieldEvents = System.yieldEvents
 register = System.register
 unregister = System.unregister
 on = System.on
+suppress = System.suppress
+unsuppress = System.unsuppress
 
 
 ### BOILER PLATE DYNAMIC PACKAGE ###
@@ -155,11 +170,11 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}): '''{ast.get_docstring(node) or '...'}'''\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n'''{ast.get_docstring(node) or '...'}'''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"
-                                stub_lines.append(f"\tdef {item.name}({signature}): '''{ast.get_docstring(item) or '...'}'''\n\n")
+                                stub_lines.append(f"\tdef {item.name}({signature}):\n'''{ast.get_docstring(item) or '...'}'''\n\n")
                         
         except Exception:
             continue

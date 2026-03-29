@@ -22,6 +22,25 @@
             function deepCopy(data){
                 return JSON.parse(JSON.stringify(data));
             }
+            window.GameEventBus = {
+                listeners: {},
+                on: function(event, callback){
+                    if(!(event in window.GameEventBus.listeners)){
+                        window.GameEventBus.listeners[event] = []
+                    }
+                    window.GameEventBus.listeners[event].push(callback);
+                },
+                emit: function(event, data){
+                    for(const callback of window.GameEventBus.listeners[event] ?? []){
+                        try{
+                            callback(data);
+                        }catch(err){
+                            console.error("No"+err);//TODO: nicer error reporting. LOG IT!
+                        }
+                    }
+                }
+            };
+            //TODO: a script injector (use javascript to insert a script tag)
             let guis = {
                 "combat": new CombatUI(document.querySelector("body"))
             }

@@ -511,7 +511,7 @@ class UserInterface(Systems.System):
 
         return event.result
 
-    async def tickHelper(self, view, projection, resolution) -> None:
+    async def tickHelper(self, view, projection, resolution) -> Event.Result:
         entities = {}
         for eid, combatant in Components.Combatant.getAll():
             clip_space =  np.array(projection, dtype=np.float32).reshape(4,4) @ np.array(view, dtype=np.float32).reshape(4,4) @ np.append(combatant.pos, 1)
@@ -527,33 +527,42 @@ class UserInterface(Systems.System):
                 "posture": combatant.posture,
                 "target": combatant.target
             }
-        self.callJSFunc("guis.combat.onTickUpdate", entities)
+        return await Systems.immediateEvent(Events.UIEvent("CombatUpdate", entities=entities))
 
     @Systems.on(Events.CombatGUITick, Systems.Priority.DEFAULT)
     async def onCombatGUITick(self, event: Events.CombatGUITick) -> Events.Result:
-        await self.tickHelper(event.view, event.projection, event.resolution)
-        return event.result
+        return await self.tickHelper(event.view, event.projection, event.resolution)
 
     @Systems.on(Events.CombatTick, Systems.Priority.DEFAULT)
     async def onCombatTick(self, event: Events.CombatTick) -> Events.Result:
-        await self.tickHelper(event.view, event.projection, event.last_resolution)
-        return event.result
-
+        return await self.tickHelper(event.view, event.projection, event.last_resolution)
 
     @Systems.on(Events.BattleBegin, Systems.Priority.LOWEST)
     async def onBattleBegin(self, event: Events.BattleBegin) -> Event.Result:
         init_data = {
             "postures": {
-                str(en).split(".")[-1]: int(en) for en in Components.Combatant.Posture
+                str(entry).split(".")[-1]: int(entry) for entry in Components.Combatant.Posture
             }
         }
-        self.callJSFunc("guis.combat.init", init_data)
-        return event.result
+        return await Systems.immediateEvent(Events.UIEvent("CombatInit", **init_data))
 
     @Systems.on(Events.PlayerCombatantReady, Systems.Priority.LOWEST)
     async def onPlayerReady(self, event: Events.PlayerCombatantReady) -> Event.Result:
-        combatant = Components.Combatant[event.eid]
-        self.callJSFunc("guis.combat.setReadyEntity", {
-            "eid": event.eid,
-        })
+        return await Systems.immediateEvent(Events.UIEvent("CombatReadyEntity", eid=event.eid))
+
+    @Systems.on(Events.UIEvent, Systems.Priority.LOWEST)
+    async def onUIEvent(self, event: Events.UIEvent) -> Event.Result:
+        result = None
+
+        context = self._lib.ulViewLockJSContext(self.view)
+        js_string = self._lib_wc.JSStringCreateWithUTF8CString(f"window.GameEventBus.emit('{event.name}', {json.dumps(event.data)});".encode("utf-8"))
+        js_result = self._lib_wc.JSEvaluateScript(context, js_string, self._ffi.NULL, self._ffi.NULL, 0, self._ffi.NULL)
+        if js_result == self._ffi.NULL:
+            exception = self._ffi.new("JSValueRefPtr")
+            js_error = self.helperJSExtractString(exception[0], context)
+            print(f"ERROR: {js_err}")
+        result = self.helperJSExtractString(js_result, context)
+        self._lib.JSStringRelease(js_string)
+        self._lib.ulViewUnlockJSContext(self.view)
+
         return event.result

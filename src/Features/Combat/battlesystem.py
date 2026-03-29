@@ -118,6 +118,9 @@ class Battle(Systems.System):
             player_party = player.party_id
 
         for eid, combatant in combatants:
+            #advance animation?
+
+            # Advance progress
             match combatant.status:
                 case Components.Combatant.Status.MANUEVER:
                     combatant.progress += combatant.progress_speed * event.dilation * event.dt
@@ -232,7 +235,7 @@ class Battle(Systems.System):
             match combatant.status:
                 case Components.Combatant.Status.MANUEVER | Components.Combatant.Status.ACT:
                     velocity = chosen_final[i][:2]*combatant.move_speed
-                    combatant.forward = forward_final[i]
+                    #combatant.forward = forward_final[i]
                     combatant.body.velocity = tuple(velocity)
 
         self.world.step(event.dt)

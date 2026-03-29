@@ -105,7 +105,7 @@ class Component:
             case Component.SpecialTag.NP_ARRAY:
                 dtype, shape, raw = tag.value
                 return np.frombuffer(raw, dtype=dtype).reshape(shape)
-        return tag
+        return tag #TODO: return an UnknownComponent object, for missing mods
 
     @staticmethod
     def deserialize(data) -> Component:
@@ -150,11 +150,11 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}): '''{ast.get_docstring(node) or '...'}'''\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n'''{ast.get_docstring(node) or '...'}'''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"
-                                stub_lines.append(f"\tdef {item.name}({signature}): '''{ast.get_docstring(item) or '...'}'''\n\n")
+                                stub_lines.append(f"\tdef {item.name}({signature}):\n'''{ast.get_docstring(item) or '...'}'''\n\n")
                         
         except Exception:
             continue
