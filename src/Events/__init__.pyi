@@ -61,6 +61,9 @@ class BattleBegin(Event):
 
 class BattleEnd(Event):
 '''None or '...''''
+	def __init__(self, **kwargs):
+'''...'''
+
 class AICombatantReady(Event):
 '''None or '...''''
 	def __init__(self, eid: int, **kwargs):

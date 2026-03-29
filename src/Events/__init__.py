@@ -11,7 +11,8 @@ import yaml
 
 
 class Event:
-    __known_events: dict = {}
+    __registry: dict = {}
+
     class Result(int, enum.Enum):
         FINISHED = enum.auto() # All listeners allowed continue
         CONTINUE = enum.auto() # Currently processing
@@ -23,7 +24,6 @@ class Event:
         self._result: Result = Event.Result.CONTINUE
 
     def __init_subclass__(cls, **kwargs):
-        Event.__known_events[cls.__name__] = cls
         event_tag = f"!{cls.__name__}"
 
         def constructor(loader, node):
@@ -32,6 +32,10 @@ class Event:
 
         yaml.SafeLoader.add_constructor(event_tag, constructor)
 
+    @staticmethod
+    def get(name: str) -> Event:
+        return Event.__registry.get(name)
+        
     @property
     def result(self) -> Event.Result:
         return self._result
@@ -42,12 +46,15 @@ class Event:
 
 # Syntatic Sugar
 Result = Event.Result
+get = Event.get
 
 
 ### BOILER PLATE DYNAMIC PACKAGE ###
+_CLASS = Event
+_CLASS_NAME = _CLASS.__name__
 _CONTENT_MAP = {}
+_FILE_CACHE = set()
 _INITIALIZED = False
-_CLASS_NAME = "Event"
 
 def _discover():
     global _INITIALIZED
@@ -85,20 +92,29 @@ def _discover():
             file.write(line)
 
 def __getattr__(name):
+    global _FILE_CACHE
     _discover()
-    
-    if name not in _CONTENT_MAP:
-        raise AttributeError(f"Module '{_CLASS_NAME}s' has no event named '{name}'")
-    
-    path = _CONTENT_MAP[name]
-    spec = spec_from_file_location(name, str(path))
-    mod = module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    
-    cls = getattr(mod, name)
-    globals()[name] = cls
-    return cls
 
+    if name not in _CONTENT_MAP:
+        raise AttributeError(f"Module '{_CLASS_NAME}s' has no {_CLASS_NAME} named '{name}'")
+
+    path = _CONTENT_MAP[name]
+    if path not in _FILE_CACHE:
+        namespace = set(globals().keys())
+        with open(path, "r") as file:
+            exec(compile(file.read(), str(path), 'exec'), globals())
+        
+        for key in set(globals().keys()) - namespace:
+            obj = globals()[key]
+            if isinstance(obj, type) and issubclass(obj, _CLASS) and obj is not _CLASS:
+                obj.__module__ = __name__
+                Event._Event__registry[key] = obj
+            else:
+                del globals()[key]
+
+        _FILE_CACHE.add(path)
+    return globals().get(name)
+        
 def __dir__():
     _discover()
     return list(globals().keys()) + list(_CONTENT_MAP.keys())

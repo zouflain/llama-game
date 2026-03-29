@@ -5,6 +5,7 @@ class CombatUI{
         this.active_entity = null;
         this.active_ui = null;
         this.parent = parent;
+        this.postures = {};
         this.radials = {
             main: new Radial(
                 {inner: 250, outer: 350},
@@ -14,11 +15,19 @@ class CombatUI{
                         click: ()=>{
                             let entity = this.entities[this.active_entity];
                             entity.target = 152;
-                            issueCombatCommand(JSON.stringify({
-                                eid: this.active_entity,
-                                posture: entity.posture,
-                                target: entity.target
-                            }));
+                            window.GameEventBus.trigger(
+                                "PlayerCombatantCommand",
+                                /*JSON.stringify({
+                                    eid: this.active_entity,
+                                    posture: entity.posture,
+                                    target: entity.target
+                                })*/
+                                {
+                                    eid: this.active_entity,
+                                    posture: entity.posture,
+                                    target: entity.target
+                                }
+                            );
                             this.element.hidden = true;
                         }
                     },
@@ -37,6 +46,7 @@ class CombatUI{
         window.GameEventBus.on("CombatUpdate", this.onTickUpdate.bind(this));
         window.GameEventBus.on("CombatReadyEntity", this.setReadyEntity.bind(this));
         window.GameEventBus.on("CombatInit", this.init.bind(this));
+        //window.GameEventBus.trigger("TEST", {foo: "bar"});
     }
     render(hide=false){
         if(this.element!= null){

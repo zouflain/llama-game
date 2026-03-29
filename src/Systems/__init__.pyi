@@ -17,10 +17,10 @@ class UserInterface(System):
 	def callJSFunc(self, func_name: str, data: dict=None):
 '''...'''
 
-	def jsIssueCombatCommand(self, ctx, func, this, argc, args, exception):
+	def jsTriggerEvent(self, ctx, func, this, argc, args, exception):
 '''...'''
 
-	def jsSnapMouse(self, ctx, func, this, argc, args, exception):
+	def helperJSExtractJSON(self, ref, context):
 '''...'''
 
 	def helperJSExtractString(self, ref, context):

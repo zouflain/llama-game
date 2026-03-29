@@ -249,7 +249,7 @@ class UserInterface(Systems.System):
 
         return json.loads(result) if result else None
 
-    def jsIssueCombatCommand(self, ctx, func, this, argc, args, exception):
+    '''def jsIssueCombatCommand(self, ctx, func, this, argc, args, exception):
         if argc > 0:
             data_str = self.helperJSExtractString(args[0], ctx)
             if data_str:
@@ -257,13 +257,35 @@ class UserInterface(Systems.System):
                 Systems.raiseEvent(Events.PlayerCombatantCommand(**data))
         return self._ffi.NULL
 
+
     def jsSnapMouse(self, ctx, func, this, argc, args, exception):
         if argc > 0:
             center_str = self.helperJSExtractString(args[0], ctx)
             if center_str:
                 center = json.loads(center_str)
                 SDL.SDL_WarpMouseInWindow(None, int(center.get("x", 0)), int(center.get("y", 0)))
+        return self._ffi.NULL'''
+
+    def jsTriggerEvent(self, ctx, func, this, argc, args, exception):
+        if argc > 1 and self._lib_wc.JSValueIsString(ctx, args[0]) and self._lib_wc.JSValueIsObject(ctx, args[1]):
+            event_name = self.helperJSExtractString(args[0], ctx)
+            data = self.helperJSExtractJSON(args[1], ctx)
+            event_type = Events.get(event_name)
+            print(Events.PlayerCombatantCommand == event_type)
+            if event_type:
+                print(event_type.__qualname__, event_type.__module__)
+                evt = event_type(**data)
+                Systems.raiseEvent(evt)
         return self._ffi.NULL
+
+    def helperJSExtractJSON(self, ref, context) -> dict:
+        js_data_str = self._lib_wc.JSValueCreateJSONString(context, ref, 0, self._ffi.NULL)
+        js_strlen = self._lib_wc.JSStringGetMaximumUTF8CStringSize(js_data_str)
+        js_buffer = self._ffi.new("char[]", js_strlen)
+        self._lib_wc.JSStringGetUTF8CString(js_data_str, js_buffer, js_strlen)
+        data_str = self._ffi.string(js_buffer).decode("utf-8")
+        self._lib_wc.JSStringRelease(js_data_str)
+        return json.loads(data_str)
 
     def helperJSExtractString(self, ref, context) -> str:
         result = None
@@ -297,8 +319,9 @@ class UserInterface(Systems.System):
             self._lib_wc.JSObjectSetProperty(context, js_global, js_func_name, js_func_obj, 0, self._ffi.NULL)
             self._lib_wc.JSStringRelease(js_func_name)
         
-        makeJSFunction("snapMouse", "snapMouse", self.jsSnapMouse)
-        makeJSFunction("issueCombatCommand", "issueCombatCommand", self.jsIssueCombatCommand)
+        #makeJSFunction("snapMouse", "snapMouse", self.jsSnapMouse)
+        #makeJSFunction("issueCombatCommand", "issueCombatCommand", self.jsIssueCombatCommand)
+        makeJSFunction("TriggerGameEvent", "TriggerGameEvent", self.jsTriggerEvent)
         self._lib.ulViewUnlockJSContext(self.view)
 
     def callbackChangeCursor(self, user_data, caller, cursor): # TODO: actually change cursor, this is test/placeholder
@@ -527,15 +550,17 @@ class UserInterface(Systems.System):
                 "posture": combatant.posture,
                 "target": combatant.target
             }
-        return await Systems.immediateEvent(Events.UIEvent("CombatUpdate", entities=entities))
+        return (await Systems.immediateEvent(Events.UIEvent("CombatUpdate", entities=entities))).result
 
     @Systems.on(Events.CombatGUITick, Systems.Priority.DEFAULT)
     async def onCombatGUITick(self, event: Events.CombatGUITick) -> Events.Result:
-        return await self.tickHelper(event.view, event.projection, event.resolution)
+        await self.tickHelper(event.view, event.projection, event.resolution)
+        return event.result
 
     @Systems.on(Events.CombatTick, Systems.Priority.DEFAULT)
     async def onCombatTick(self, event: Events.CombatTick) -> Events.Result:
-        return await self.tickHelper(event.view, event.projection, event.last_resolution)
+        await self.tickHelper(event.view, event.projection, event.last_resolution)
+        return event.result
 
     @Systems.on(Events.BattleBegin, Systems.Priority.LOWEST)
     async def onBattleBegin(self, event: Events.BattleBegin) -> Event.Result:
@@ -544,11 +569,13 @@ class UserInterface(Systems.System):
                 str(entry).split(".")[-1]: int(entry) for entry in Components.Combatant.Posture
             }
         }
-        return await Systems.immediateEvent(Events.UIEvent("CombatInit", **init_data))
+        await Systems.immediateEvent(Events.UIEvent("CombatInit", **init_data))
+        return event.result
 
     @Systems.on(Events.PlayerCombatantReady, Systems.Priority.LOWEST)
     async def onPlayerReady(self, event: Events.PlayerCombatantReady) -> Event.Result:
-        return await Systems.immediateEvent(Events.UIEvent("CombatReadyEntity", eid=event.eid))
+        await Systems.immediateEvent(Events.UIEvent("CombatReadyEntity", eid=event.eid))
+        return event.result
 
     @Systems.on(Events.UIEvent, Systems.Priority.LOWEST)
     async def onUIEvent(self, event: Events.UIEvent) -> Event.Result:
@@ -560,7 +587,7 @@ class UserInterface(Systems.System):
         if js_result == self._ffi.NULL:
             exception = self._ffi.new("JSValueRefPtr")
             js_error = self.helperJSExtractString(exception[0], context)
-            print(f"ERROR: {js_err}")
+            print(f"ERROR: {js_error}")
         result = self.helperJSExtractString(js_result, context)
         self._lib.JSStringRelease(js_string)
         self._lib.ulViewUnlockJSContext(self.view)

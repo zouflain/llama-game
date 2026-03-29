@@ -9,9 +9,13 @@ JSObjectRef JSContextGetGlobalObject(JSContextRef ctx);
 JSStringRef JSStringCreateWithUTF8CString(const char* string);
 JSObjectRef JSObjectMakeFunctionWithCallback(JSContextRef ctx, JSStringRef name, JSObjectCallAsFunctionCallback callback);
 void JSObjectSetProperty(JSContextRef ctx, JSObjectRef object, JSStringRef name, JSValueRef value, int attributes, JSValueRef* exception);
+JSValueRef JSObjectGetProperty(JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception);
+JSObjectRef JSValueToObject(JSContextRef ctx, JSValueRef value, JSValueRef* exception);
 void JSStringRelease(JSStringRef string);
 JSValueRef JSEvaluateScript(JSContextRef ctx, JSStringRef script, JSObjectRef thisObject, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception);
 bool JSValueIsString(JSContextRef ctx, JSValueRef value);
+bool JSValueIsObject(JSContextRef ctx, JSValueRef value);
+JSStringRef JSValueCreateJSONString(JSContextRef ctx, JSValueRef value, unsigned int indent, JSValueRef* exception);
 
 JSStringRef JSValueToStringCopy(JSContextRef ctx, JSValueRef value, JSValueRef* exception);
 size_t JSStringGetMaximumUTF8CStringSize(JSStringRef string);

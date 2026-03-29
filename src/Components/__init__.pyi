@@ -19,5 +19,3 @@ class Combatant(Component):
 	def model(self):
 '''...'''
 
-class Character(Component):
-'''...'''

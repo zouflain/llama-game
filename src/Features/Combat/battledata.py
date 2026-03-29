@@ -76,10 +76,6 @@ class Combatant(Components.Component):
         return model
 
 
-
-class Character(Components.Component): pass
-
-
 class CombatTick(Events.Event):
     def __init__(self, dt: float, dilation: float = 1, view = None, last_projection = None, last_resolution = None, **kwargs):
         super().__init__(**kwargs)
@@ -122,7 +118,9 @@ class BattleBegin(Events.Event):
         self.arena_size: tupe[int, int] = arena_size
         self.seed: int = seed
 
-class BattleEnd(Events.Event): pass
+class BattleEnd(Events.Event):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 class AICombatantReady(Events.Event):
     def __init__(self, eid: int, **kwargs):

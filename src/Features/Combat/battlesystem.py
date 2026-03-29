@@ -246,7 +246,6 @@ class Battle(Systems.System):
 
     @Systems.on(Events.SpawnCombatant, Systems.Priority.HIGHEST)
     async def onSpawnCombatant(self, event: Events.SpawnCombatant) -> Events.Result:
-        Components.Character(event.eid)
         theta = 2*np.pi*self.randomizer.random()
         distance = 500
         pos = np.array([
