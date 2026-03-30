@@ -24,14 +24,6 @@ class CombatUI{
                                 }
                             );
                             this.element.hidden = true;
-                        },
-                        hover: ()=>{
-                            window.GameEventBus.trigger(
-                                "AudioTrigger",
-                                {
-                                    fmod_event: "event:/sword_hit"
-                                }
-                            )
                         }
                     },
                     {

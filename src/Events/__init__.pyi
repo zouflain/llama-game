@@ -26,7 +26,12 @@ class CameraUpdate(Event):
 
 class AudioTrigger(Event):
 '''None or '...''''
-	def __init__(self, fmod_event: str, **kwargs):
+	def __init__(self, fmod_event: str, eid: int=0, playback: PlaybackType=PlaybackType.FIRE_AND_FORGET, parameters: dict=None, **kwargs):
+'''...'''
+
+class AudioParameters(Event):
+'''None or '...''''
+	def __init__(self, fmod_event: str, eid: int, parameters: dict):
 '''...'''
 
 class UIEvent(Event):

@@ -72,7 +72,15 @@ class Radial extends UIElement{
         window.GameEventBus.trigger(
             "AudioTrigger",
             {
-                fmod_event: "event:/sword_hit"
+                fmod_event: "event:/sword_hit",
+                //playback: 2,
+                eid: 1,
+                parameters: {
+                    test: {
+                        ignore: false,
+                        value: "test2"
+                    }
+                }
             }
         )
     }

@@ -1,3 +1,35 @@
+
+typedef unsigned int FMOD_STUDIO_EVENT_CALLBACK_TYPE;
+#define FMOD_STUDIO_EVENT_CALLBACK_CREATED                  0x00000001
+#define FMOD_STUDIO_EVENT_CALLBACK_DESTROYED                0x00000002
+#define FMOD_STUDIO_EVENT_CALLBACK_STARTING                 0x00000004
+#define FMOD_STUDIO_EVENT_CALLBACK_STARTED                  0x00000008
+#define FMOD_STUDIO_EVENT_CALLBACK_RESTARTED                0x00000010
+#define FMOD_STUDIO_EVENT_CALLBACK_STOPPED                  0x00000020
+#define FMOD_STUDIO_EVENT_CALLBACK_START_FAILED             0x00000040
+#define FMOD_STUDIO_EVENT_CALLBACK_CREATE_PROGRAMMER_SOUND  0x00000080
+#define FMOD_STUDIO_EVENT_CALLBACK_DESTROY_PROGRAMMER_SOUND 0x00000100
+#define FMOD_STUDIO_EVENT_CALLBACK_PLUGIN_CREATED           0x00000200
+#define FMOD_STUDIO_EVENT_CALLBACK_PLUGIN_DESTROYED         0x00000400
+#define FMOD_STUDIO_EVENT_CALLBACK_TIMELINE_MARKER          0x00000800
+#define FMOD_STUDIO_EVENT_CALLBACK_TIMELINE_BEAT            0x00001000
+#define FMOD_STUDIO_EVENT_CALLBACK_SOUND_PLAYED             0x00002000
+#define FMOD_STUDIO_EVENT_CALLBACK_SOUND_STOPPED            0x00004000
+#define FMOD_STUDIO_EVENT_CALLBACK_REAL_TO_VIRTUAL          0x00008000
+#define FMOD_STUDIO_EVENT_CALLBACK_VIRTUAL_TO_REAL          0x00010000
+#define FMOD_STUDIO_EVENT_CALLBACK_START_EVENT_COMMAND      0x00020000
+#define FMOD_STUDIO_EVENT_CALLBACK_NESTED_TIMELINE_BEAT     0x00040000
+#define FMOD_STUDIO_EVENT_CALLBACK_ALL                      0xFFFFFFFF
+
+typedef unsigned int FMOD_STUDIO_INITFLAGS;
+#define FMOD_STUDIO_INIT_NORMAL                             0x00000000
+#define FMOD_STUDIO_INIT_LIVEUPDATE                         0x00000001
+#define FMOD_STUDIO_INIT_ALLOW_MISSING_PLUGINS              0x00000002
+#define FMOD_STUDIO_INIT_SYNCHRONOUS_UPDATE                 0x00000004
+#define FMOD_STUDIO_INIT_DEFERRED_CALLBACKS                 0x00000008
+#define FMOD_STUDIO_INIT_LOAD_FROM_UPDATE                   0x00000010
+#define FMOD_STUDIO_INIT_MEMORY_TRACKING                    0x00000020
+
 typedef enum FMOD_RESULT
 {
     FMOD_OK,
@@ -92,6 +124,14 @@ typedef enum FMOD_STUDIO_LOAD_MEMORY_MODE
 
     FMOD_STUDIO_LOAD_MEMORY_FORCEINT = 65536    /* Makes sure this enum is signed 32bit. */
 } FMOD_STUDIO_LOAD_MEMORY_MODE;
+typedef enum FMOD_STUDIO_STOP_MODE
+{
+    FMOD_STUDIO_STOP_ALLOWFADEOUT,
+    FMOD_STUDIO_STOP_IMMEDIATE,
+
+    FMOD_STUDIO_STOP_FORCEINT = 65536           /* Makes sure this enum is signed 32bit. */
+} FMOD_STUDIO_STOP_MODE;
+
 typedef struct FMOD_STUDIO_SYSTEM FMOD_STUDIO_SYSTEM;
 typedef struct FMOD_STUDIO_BANK FMOD_STUDIO_BANK;
 typedef struct FMOD_STUDIO_EVENTDESCRIPTION FMOD_STUDIO_EVENTDESCRIPTION;
@@ -100,6 +140,9 @@ typedef unsigned int FMOD_STUDIO_INITFLAGS;
 typedef unsigned int FMOD_INITFLAGS;
 typedef unsigned int FMOD_STUDIO_LOAD_BANK_FLAGS;
 typedef int FMOD_BOOL;
+
+typedef FMOD_RESULT (*FMOD_STUDIO_EVENT_CALLBACK)(FMOD_STUDIO_EVENT_CALLBACK_TYPE type, FMOD_STUDIO_EVENTINSTANCE *event, void *parameters);
+
 FMOD_RESULT FMOD_Studio_System_Create(FMOD_STUDIO_SYSTEM **system, unsigned int headerversion);
 FMOD_RESULT FMOD_Studio_System_Initialize(FMOD_STUDIO_SYSTEM *system, int maxchannels, FMOD_STUDIO_INITFLAGS studioflags, FMOD_INITFLAGS flags, void *extradriverdata);
 FMOD_RESULT FMOD_Studio_System_Release(FMOD_STUDIO_SYSTEM *system);
@@ -110,7 +153,13 @@ FMOD_RESULT FMOD_Studio_EventDescription_CreateInstance(FMOD_STUDIO_EVENTDESCRIP
 FMOD_RESULT FMOD_Studio_EventDescription_ReleaseAllInstances(FMOD_STUDIO_EVENTDESCRIPTION *eventdescription);
 FMOD_RESULT FMOD_Studio_EventDescription_LoadSampleData(FMOD_STUDIO_EVENTDESCRIPTION *eventdescription);
 FMOD_RESULT FMOD_Studio_EventInstance_Start(FMOD_STUDIO_EVENTINSTANCE *eventinstance);
+FMOD_RESULT FMOD_Studio_EventInstance_SetCallback(FMOD_STUDIO_EVENTINSTANCE *eventinstance, FMOD_STUDIO_EVENT_CALLBACK callback, FMOD_STUDIO_EVENT_CALLBACK_TYPE callbackmask);
 FMOD_RESULT FMOD_Studio_EventInstance_Release(FMOD_STUDIO_EVENTINSTANCE *eventinstance);
 FMOD_RESULT FMOD_Studio_Bank_GetEventCount(FMOD_STUDIO_BANK *bank, int *count);
 FMOD_RESULT FMOD_Studio_Bank_GetEventList(FMOD_STUDIO_BANK *bank, FMOD_STUDIO_EVENTDESCRIPTION **array, int capacity, int *count);
 FMOD_RESULT FMOD_Studio_EventDescription_IsStream(FMOD_STUDIO_EVENTDESCRIPTION *eventdescription, FMOD_BOOL *isStream);
+FMOD_RESULT FMOD_Studio_System_SetParameterByName(FMOD_STUDIO_SYSTEM *system, const char *name, float value, FMOD_BOOL ignoreseekspeed);
+FMOD_RESULT FMOD_Studio_System_SetParameterByNameWithLabel(FMOD_STUDIO_SYSTEM *system, const char *name, const char *label, FMOD_BOOL ignoreseekspeed);
+FMOD_RESULT FMOD_Studio_EventInstance_SetParameterByName(FMOD_STUDIO_EVENTINSTANCE *eventinstance, const char *name, float value, FMOD_BOOL ignoreseekspeed);
+FMOD_RESULT FMOD_Studio_EventInstance_SetParameterByNameWithLabel(FMOD_STUDIO_EVENTINSTANCE *eventinstance, const char *name, const char *label, FMOD_BOOL ignoreseekspeed);
+FMOD_RESULT FMOD_Studio_EventInstance_Stop(FMOD_STUDIO_EVENTINSTANCE *eventinstance, FMOD_STUDIO_STOP_MODE mode);

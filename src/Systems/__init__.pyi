@@ -14,6 +14,9 @@ class AudioController(System):
 	def __init__(self, **kwargs):
 '''...'''
 
+	def fmodEventCallback(self, evt_type, event_ptr, parameters):
+'''...'''
+
 class UserInterface(System):
 '''...'''
 	def __init__(self, screen_dimensions: tuple[int, int], **kwargs):
