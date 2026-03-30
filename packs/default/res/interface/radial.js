@@ -11,29 +11,7 @@ class Radial extends UIElement{
             this.element = null;
         }
         this.element = parent_element.appendChild(document.createRange().createContextualFragment(`
-            <div class="svg-container">
-                <style>
-                    .svg-container{
-                        position: absolute;
-                    }
-                    .svg-container svg{
-                        position: absolute;
-                        display: block;
-                        top: 0;
-                        left: 0;
-                        pointer-events: none;
-                    }
-                    .svg-container svg path{
-                        fill: var(--color-fill, royalblue);
-                    }
-                    .svg-container svg path:hover{
-                        fill: var(--color-hover, green);
-                    }
-                    .svg-container svg path{
-                        pointer-events: visiblePainted;
-                    }
-                </style>
-            </div>
+            <div class="svg-container"></div>
         `).firstElementChild);
         Object.assign(this.element.style, {
             width: (this.circle.outer*2)+"px",
@@ -76,6 +54,7 @@ class Radial extends UIElement{
                 path.setAttribute("d", commands);
                 svg.appendChild(path);
                 svg.addEventListener("click", option.click);
+                svg.addEventListener("mouseenter", option.hover || this.defaultHover);
                 svgs.push(svg);
             }
         }
@@ -88,5 +67,13 @@ class Radial extends UIElement{
             left: (offset.x - this.circle.outer)+"px",
             top: (offset.y - this.circle.outer)+"px"
         });
+    }
+    defaultHover(){
+        window.GameEventBus.trigger(
+            "AudioTrigger",
+            {
+                fmod_event: "event:/sword_hit"
+            }
+        )
     }
 }

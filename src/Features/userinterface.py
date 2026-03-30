@@ -12,6 +12,7 @@ import json
 
 import Systems, Events, Resources, Components
 
+
 class UserInterface(Systems.System):
 
     class ShaderConstants(int, Enum):
@@ -249,33 +250,13 @@ class UserInterface(Systems.System):
 
         return json.loads(result) if result else None
 
-    '''def jsIssueCombatCommand(self, ctx, func, this, argc, args, exception):
-        if argc > 0:
-            data_str = self.helperJSExtractString(args[0], ctx)
-            if data_str:
-                data = json.loads(data_str)
-                Systems.raiseEvent(Events.PlayerCombatantCommand(**data))
-        return self._ffi.NULL
-
-
-    def jsSnapMouse(self, ctx, func, this, argc, args, exception):
-        if argc > 0:
-            center_str = self.helperJSExtractString(args[0], ctx)
-            if center_str:
-                center = json.loads(center_str)
-                SDL.SDL_WarpMouseInWindow(None, int(center.get("x", 0)), int(center.get("y", 0)))
-        return self._ffi.NULL'''
-
     def jsTriggerEvent(self, ctx, func, this, argc, args, exception):
         if argc > 1 and self._lib_wc.JSValueIsString(ctx, args[0]) and self._lib_wc.JSValueIsObject(ctx, args[1]):
             event_name = self.helperJSExtractString(args[0], ctx)
             data = self.helperJSExtractJSON(args[1], ctx)
             event_type = Events.get(event_name)
-            print(Events.PlayerCombatantCommand == event_type)
             if event_type:
-                print(event_type.__qualname__, event_type.__module__)
-                evt = event_type(**data)
-                Systems.raiseEvent(evt)
+                Systems.raiseEvent(event_type(**data))
         return self._ffi.NULL
 
     def helperJSExtractJSON(self, ref, context) -> dict:
@@ -319,8 +300,6 @@ class UserInterface(Systems.System):
             self._lib_wc.JSObjectSetProperty(context, js_global, js_func_name, js_func_obj, 0, self._ffi.NULL)
             self._lib_wc.JSStringRelease(js_func_name)
         
-        #makeJSFunction("snapMouse", "snapMouse", self.jsSnapMouse)
-        #makeJSFunction("issueCombatCommand", "issueCombatCommand", self.jsIssueCombatCommand)
         makeJSFunction("TriggerGameEvent", "TriggerGameEvent", self.jsTriggerEvent)
         self._lib.ulViewUnlockJSContext(self.view)
 

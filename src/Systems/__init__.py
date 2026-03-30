@@ -9,7 +9,7 @@ from Events import Event
 
 class Priority(int, Enum):
     HIGHEST = 100000
-    DEFAULT = 10000
+    DEFAULT = 1000
     LOWEST = 0
 
 class System:
@@ -119,6 +119,11 @@ class System:
     def unsuppress(event: Type, system: Type) -> None:
         System.__suppressed_systems.remove((event, system))
 
+    @staticmethod
+    async def deinit() -> None:
+        for system in System.__active_systems:
+            await system.unboot()
+
     async def boot(self, **kwargs) -> bool:
         return True
 
@@ -134,6 +139,7 @@ unregister = System.unregister
 on = System.on
 suppress = System.suppress
 unsuppress = System.unsuppress
+deinit = System.deinit
 
 
 ### BOILER PLATE DYNAMIC PACKAGE ###

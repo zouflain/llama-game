@@ -9,6 +9,11 @@ class CameraSystem(System):
 	def __init__(self, **kwargs):
 '''...'''
 
+class AudioController(System):
+'''...'''
+	def __init__(self, **kwargs):
+'''...'''
+
 class UserInterface(System):
 '''...'''
 	def __init__(self, screen_dimensions: tuple[int, int], **kwargs):

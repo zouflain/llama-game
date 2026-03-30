@@ -173,6 +173,7 @@ class Game:
         await Systems.register(Systems.EntityController(150))
         await Systems.register(Systems.UserInterface(self.screen_dimensions))
         await Systems.register(Systems.CameraSystem())
+        await Systems.register(Systems.AudioController())
         
         await Systems.immediateEvent(Events.BattleBegin(arena_size=(1000,1000)))
 
@@ -255,6 +256,7 @@ class Game:
 
     async def onExit(self) -> None:
         await Resources.deinit()
+        await Systems.deinit()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,30 @@
+html, body{
+    position: relative;
+    padding: 0;
+    overflow: clip;
+    margin: 0;
+    background-color: transparent;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.svg-container{
+    position: absolute;
+}
+.svg-container svg{
+    position: absolute;
+    display: block;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+.svg-container svg path{
+    fill: var(--color-fill, royalblue);
+}
+.svg-container svg path:hover{
+    fill: var(--color-hover, green);
+}
+.svg-container svg path{
+    pointer-events: visiblePainted;
+}

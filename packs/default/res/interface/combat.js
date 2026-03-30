@@ -8,7 +8,7 @@ class CombatUI{
         this.postures = {};
         this.radials = {
             main: new Radial(
-                {inner: 250, outer: 350},
+                {inner: 150, outer: 250},
                 [
                     {
                         name: "Test1",
@@ -17,11 +17,6 @@ class CombatUI{
                             entity.target = 152;
                             window.GameEventBus.trigger(
                                 "PlayerCombatantCommand",
-                                /*JSON.stringify({
-                                    eid: this.active_entity,
-                                    posture: entity.posture,
-                                    target: entity.target
-                                })*/
                                 {
                                     eid: this.active_entity,
                                     posture: entity.posture,
@@ -29,6 +24,14 @@ class CombatUI{
                                 }
                             );
                             this.element.hidden = true;
+                        },
+                        hover: ()=>{
+                            window.GameEventBus.trigger(
+                                "AudioTrigger",
+                                {
+                                    fmod_event: "event:/sword_hit"
+                                }
+                            )
                         }
                     },
                     {
@@ -46,7 +49,6 @@ class CombatUI{
         window.GameEventBus.on("CombatUpdate", this.onTickUpdate.bind(this));
         window.GameEventBus.on("CombatReadyEntity", this.setReadyEntity.bind(this));
         window.GameEventBus.on("CombatInit", this.init.bind(this));
-        //window.GameEventBus.trigger("TEST", {foo: "bar"});
     }
     render(hide=false){
         if(this.element!= null){
@@ -54,14 +56,7 @@ class CombatUI{
             this.element = null;
         }
         this.element = this.parent.appendChild(document.createRange().createContextualFragment(`
-            <div class="combat-ui">
-                <style class="retain">
-                    position: absolute;
-                    left: 0;
-                    top: 0;
-                    color: green;
-                </style>
-            </div>                
+            <div class="combat-ui"></div>                
         `).firstElementChild);
         let outer_this = this;
         if(this.active_ui){

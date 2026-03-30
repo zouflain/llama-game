@@ -24,6 +24,11 @@ class CameraUpdate(Event):
 	def __init__(self, distance: float=None, sharpness: float=None, target_center: np_array=None, **kwargs):
 '''...'''
 
+class AudioTrigger(Event):
+'''None or '...''''
+	def __init__(self, fmod_event: str, **kwargs):
+'''...'''
+
 class UIEvent(Event):
 '''None or '...''''
 	def __init__(self, name: str, **kwargs):
