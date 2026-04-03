@@ -20,13 +20,14 @@ import sys
 import os
 import OpenGL.GL as GL
 from inspect import isclass
-from enum import Enum, auto
+from enum import Enum, Flag, auto as EnumAuto
 from typing import Callable
 
 import Resources
 import Events
 import Systems
 import Components
+
 
 class FromSDL(Events.Event):
     def __init__(self, sdl_event, **kwargs):
@@ -87,8 +88,8 @@ class Game:
         self.window = None
         self.gl_context = None
         self.is_running = False
-        self.screen_dimensions = (1280, 720)
-        self.target_resolution = (1280, 720)
+        self.screen_dimensions = (1440, 810)
+        self.target_resolution = (1440, 810)
         self.main_fbo = None
         self.blank_vao = None
         self.packs = ["default"]
@@ -169,11 +170,13 @@ class Game:
         )'''
 
         print(Resources.FrameData["attacks"].data)
+        await Resources.CombatAction.loadAllActions()
         await Systems.register(Systems.Battle(), render_size=self.target_resolution)
         await Systems.register(Systems.EntityController(150))
         await Systems.register(Systems.UserInterface(self.screen_dimensions))
         await Systems.register(Systems.CameraSystem())
         await Systems.register(Systems.AudioController())
+        await Systems.register(Systems.GamepadController())
         
         await Systems.immediateEvent(Events.BattleBegin(arena_size=(1000,1000)))
 
@@ -227,7 +230,7 @@ class Game:
                             Systems.raiseEvent(Events.FromSDL(last_motion))
                             last_motion = None
                         Systems.raiseEvent(Events.FromSDL(event))
-                    case SDL.SDL_CONTROLLERBUTTONDOWN:
+                    case SDL.SDL_CONTROLLERBUTTONUP | SDL.SDL_CONTROLLERBUTTONDOWN | SDL.SDL_CONTROLLERDEVICEADDED | SDL.SDL_CONTROLLERDEVICEREMOVED | SDL.SDL_CONTROLLERAXISMOTION:
                         Systems.raiseEvent(Events.FromSDL(event))
                     # TODO: need keydowns, maybe others...
             if last_motion:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import abstractmethod
-import xml.etree.ElementTree as XML
+import yaml
 import fs as FS
 from fs.multifs import MultiFS
 from fs.mountfs import MountFS
@@ -32,21 +32,14 @@ class Resource:
             directory = f"packs/{dir}"
             try:
                 pack_dir = OSFS(directory)
-                with pack_dir.open("config.xml") as xml_file:
-                    tree = XML.parse(xml_file)
-                    root = tree.getroot()
-                    for root_child in root:
-                        if root_child.tag == "paths":
-                            for resource_path in root_child:
-                                tag = resource_path.tag
-                                
-                                if tag not in mergers:
-                                    mergers[tag] = MultiFS()
-                                    Resource.__file_system.mount(tag, mergers[tag])
-
-                                resource_fs = FS.open_fs(f"{directory}/{resource_path.text}")
-                                #Resource.__file_system.add_fs(f"{resource_path.tag}", resource_fs)
-                                mergers[tag].add_fs(dir, resource_fs, priority=1)
+                with pack_dir.open("config.yaml") as file:
+                    config = yaml.safe_load(file)
+                    for tag, resource_path in config.items():
+                        if tag not in mergers:
+                            mergers[tag] = MultiFS()
+                            Resource.__file_system.mount(tag, mergers[tag])
+                        resource_fs = FS.open_fs(f"{directory}/{resource_path}")
+                        mergers[tag].add_fs(dir, resource_fs, priority=1)
             except Exception as err:
                 print(err) #TODO handle better
 

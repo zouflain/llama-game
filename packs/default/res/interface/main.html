@@ -27,7 +27,17 @@
                         }
                     }
                 },
-                trigger: TriggerGameEvent
+                trigger: TriggerGameEvent,
+                gamepad: function(data){
+                    const gamepad_change = new CustomEvent("gamepad", {
+                        detail: {
+                            ...data
+                        },
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    document.dispatchEvent(gamepad_change);
+                }
             };
             //TODO: a script injector (use javascript to insert a script tag)
             let guis = {

@@ -24,6 +24,11 @@ class CameraUpdate(Event):
 	def __init__(self, distance: float=None, sharpness: float=None, target_center: np_array=None, **kwargs):
 '''...'''
 
+class GamepadChange(Event):
+'''None or '...''''
+	def __init__(self, changes: dict, **kwargs):
+'''...'''
+
 class AudioTrigger(Event):
 '''None or '...''''
 	def __init__(self, fmod_event: str, eid: int=0, playback: PlaybackType=PlaybackType.FIRE_AND_FORGET, parameters: dict=None, **kwargs):
@@ -32,6 +37,11 @@ class AudioTrigger(Event):
 class AudioParameters(Event):
 '''None or '...''''
 	def __init__(self, fmod_event: str, eid: int, parameters: dict):
+'''...'''
+
+class UISnapMouse(Event):
+'''None or '...''''
+	def __init__(self, center: dict=None, **kwargs):
 '''...'''
 
 class UIEvent(Event):

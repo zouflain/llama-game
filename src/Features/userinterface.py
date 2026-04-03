@@ -12,6 +12,15 @@ import json
 
 import Systems, Events, Resources, Components
 
+class UISnapMouse(Events.Event):
+    def __init__(self, center: dict = None, **kwargs):
+        self.center: dict = center if center else {"x": 0, "y": 0}
+
+class UIEvent(Events.Event):
+    def __init__(self, name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.name: str = name
+        self.data: dict = kwargs
 
 class UserInterface(Systems.System):
 
@@ -242,7 +251,8 @@ class UserInterface(Systems.System):
             data = {}
 
         context = self._lib.ulViewLockJSContext(self.view)
-        js_string = self._lib_wc.JSStringCreateWithUTF8CString(f"{func_name}(JSON.parse({json.dumps(json.dumps(data))}));".encode("utf-8"))
+        #js_string = self._lib_wc.JSStringCreateWithUTF8CString(f"{func_name}(JSON.parse({json.dumps(json.dumps(data))}));".encode("utf-8"))
+        js_string = self._lib_wc.JSStringCreateWithUTF8CString(f"{func_name}({json.dumps(data)});".encode("utf-8"))
         js_result = self._lib_wc.JSEvaluateScript(context, js_string, self._ffi.NULL, self._ffi.NULL, 0, self._ffi.NULL)
         result = self.helperJSExtractString(js_result, context)
         self._lib.JSStringRelease(js_string)
@@ -392,7 +402,8 @@ class UserInterface(Systems.System):
                             button
                         )
                     )
-                )
+                )  
+        '''    
             case SDL.SDL_CONTROLLERBUTTONDOWN | SDL.SDL_CONTROLLERBUTTONUP:
                 down = event.sdl_event.type == SDL.SDL_CONTROLLERBUTTONDOWN
                 match event.sdl_event.cbutton.button:
@@ -500,6 +511,7 @@ class UserInterface(Systems.System):
                                 )
                             )
                         )
+        '''
         for ev_type, evt in events:
             match ev_type:
                 case "mouse":
@@ -513,7 +525,12 @@ class UserInterface(Systems.System):
 
         return event.result
 
-    async def tickHelper(self, view, projection, resolution) -> Event.Result:
+    @Systems.on(Events.GamepadChange, Systems.Priority.LOWEST)
+    async def onGamepadChange(self, event: Events.GamepadChange) -> Events.Result:
+        self.callJSFunc("window.GameEventBus.gamepad", event.changes)
+        return event.result
+
+    async def tickHelper(self, view, projection, resolution) -> Events.Result:
         entities = {}
         for eid, combatant in Components.Combatant.getAll():
             clip_space =  np.array(projection, dtype=np.float32).reshape(4,4) @ np.array(view, dtype=np.float32).reshape(4,4) @ np.append(combatant.pos, 1)
@@ -527,7 +544,8 @@ class UserInterface(Systems.System):
                     "y": screen_pos[1]*resolution[1]
                 },
                 "posture": combatant.posture,
-                "target": combatant.target
+                "target": combatant.target,
+                "party": combatant.party_id
             }
         return (await Systems.immediateEvent(Events.UIEvent("CombatUpdate", entities=entities))).result
 
@@ -542,7 +560,7 @@ class UserInterface(Systems.System):
         return event.result
 
     @Systems.on(Events.BattleBegin, Systems.Priority.LOWEST)
-    async def onBattleBegin(self, event: Events.BattleBegin) -> Event.Result:
+    async def onBattleBegin(self, event: Events.BattleBegin) -> Events.Result:
         init_data = {
             "postures": {
                 str(entry).split(".")[-1]: int(entry) for entry in Components.Combatant.Posture
@@ -552,12 +570,12 @@ class UserInterface(Systems.System):
         return event.result
 
     @Systems.on(Events.PlayerCombatantReady, Systems.Priority.LOWEST)
-    async def onPlayerReady(self, event: Events.PlayerCombatantReady) -> Event.Result:
+    async def onPlayerReady(self, event: Events.PlayerCombatantReady) -> Events.Result:
         await Systems.immediateEvent(Events.UIEvent("CombatReadyEntity", eid=event.eid))
         return event.result
 
     @Systems.on(Events.UIEvent, Systems.Priority.LOWEST)
-    async def onUIEvent(self, event: Events.UIEvent) -> Event.Result:
+    async def onUIEvent(self, event: Events.UIEvent) -> Events.Result:
         result = None
 
         context = self._lib.ulViewLockJSContext(self.view)
@@ -571,4 +589,9 @@ class UserInterface(Systems.System):
         self._lib.JSStringRelease(js_string)
         self._lib.ulViewUnlockJSContext(self.view)
 
+        return event.result
+
+    @Systems.on(Events.UISnapMouse, Systems.Priority.LOWEST)
+    async def onSnapMouse(self, event: Events.UISnapMouse) -> Events.Result:
+        SDL.SDL_WarpMouseInWindow(None, int(event.center.get("x", 0)), int(event.center.get("y", 0)))
         return event.result

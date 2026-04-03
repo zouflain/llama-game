@@ -28,7 +28,7 @@ class CombatUI{
                     },
                     {
                         name: "Test2",
-                        click: ()=>{}
+                        click: ()=>{console.log(1);}
                     },
                     {
                         name: "Test3",

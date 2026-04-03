@@ -1,0 +1,22 @@
+actions:
+  - name: "Strike"
+    heirarchy:
+      - "Fight"
+    posture: [0, -1, 0, -0.5]
+    animation: "swing-sword"
+    icon: "someicon.png"
+    hooks:
+      example: {}
+  - name: "Heavy"
+    heirarchy:
+      - "Fight"
+    posture: [0, -1, 0, -0.5]
+    animation: "swing-sword"
+    icon: "someicon.svg"
+  - name: "Fireball"
+    heirarchy:
+      - "Fight"
+      - "Special"
+    posture: [1, -1, 0, -1]
+    animation: "cast-spell"
+    icon: "do-stuff.jpeg"

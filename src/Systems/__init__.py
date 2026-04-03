@@ -194,7 +194,7 @@ def __getattr__(name):
     _discover()
     
     if name not in _CONTENT_MAP:
-        raise AttributeError(f"Module '{_CLASS_NAME}s' has no event named '{name}'")
+        raise AttributeError(f"Module '{_CLASS_NAME}s' has no {_CLASS_NAME} named '{name}'")
     
     path = _CONTENT_MAP[name]
     spec = spec_from_file_location(name, str(path))

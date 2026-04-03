@@ -1,4 +1,9 @@
 from Systems import System
+class GamepadController(System):
+'''...'''
+	def __init__(self, deadzone: int=BASE_DEADZONE, **kwargs):
+'''...'''
+
 class EntityController(System):
 '''...'''
 	def __init__(self, current_entity: int=0, **kwargs):
