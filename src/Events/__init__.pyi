@@ -96,6 +96,16 @@ class PlayerCombatantReady(Event):
 
 class PlayerCombatantCommand(Event):
 '''None or '...''''
-	def __init__(self, eid: int, posture: int, target: int, **kwargs):
+	def __init__(self, eid: int, action: str, target: int, **kwargs):
+'''...'''
+
+class CombatActionComplete(Event):
+'''None or '...''''
+	def __init__(self, eid: int, **kwargs):
+'''...'''
+
+class CombatDamage(Event):
+'''None or '...''''
+	def __init__(self, eid: int, target: int, **kwargs):
 '''...'''
 

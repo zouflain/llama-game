@@ -6,7 +6,18 @@ actions:
     animation: "swing-sword"
     icon: "someicon.png"
     hooks:
-      example: {}
+      damage:
+        - event: "CombatDamage"
+          fields:
+        - event: "CombatActionComplete"
+          fields:
+    requirements:
+      is:
+        - ALIVE
+      not:
+        - SAME_PARTY
+    range: 40
+    state: ACT
   - name: "Heavy"
     heirarchy:
       - "Fight"

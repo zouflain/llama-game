@@ -137,6 +137,9 @@ class Game:
             for i in range(SDL.SDL_NumJoysticks()):
                 self.joysticks.append(SDL.SDL_GameControllerOpen(i))
 
+        # Grab the mouse
+        #SDL.SDL_SetWindowMouseGrab(self.window, SDL.SDL_TRUE)
+
 
 
     async def boot(self) -> None:
@@ -193,7 +196,6 @@ class Game:
                 ]
             ]
         ))
-        Components.Combatant[player_evt.entity].posture = Components.Combatant.Posture.EVASIVE
         for i in range(2):
             enemy_evt = await Systems.immediateEvent(Events.GenerateEntity())
             await Systems.immediateEvent(Events.SpawnCombatant(

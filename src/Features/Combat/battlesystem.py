@@ -6,8 +6,15 @@ import sdl2 as SDL
 import numpy as np
 import pymunk
 import random
+import logging
 
 import Systems, Events, Components, Resources
+
+class CombatDamage(Events.Event):
+    def __init__(self, eid: int, target: int, **kwargs):
+        super().__init__(**kwargs)
+        self.eid = eid
+        self.target = target
 
 
 class Battle(Systems.System):
@@ -136,7 +143,23 @@ class Battle(Systems.System):
                             break
                         else:
                             await Systems.immediateEvent(Events.AICombatantReady(eid))
-                case Components.Combatant.Status.ACT: pass
+                case Components.Combatant.Status.ACT:
+                    action = Resources.CombatAction[combatant.action]
+                    if action:
+                        target = combatant.target
+                        target_combatant = Components.Combatant[combatant.target]
+                        distance = np.linalg.norm(target_combatant.pos - combatant.pos)
+                        if distance < float(combatant.size+target_combatant.size)+action.range:
+                            x = action.onHook("damage")
+                            for evt, fields in action.onHook("damage"):
+                                child_evt = Events.get(evt)
+                                if child_evt is not None:
+                                    Systems.raiseEvent(child_evt(eid=eid, target=combatant.target, **fields))
+                                else:
+                                    print(f"BAD EVENT {evt}")
+                                    pass # ANOTHER script error warning needed
+                    else:
+                        pass # TODO: major warning needed
         return event.result
 
     @Systems.on(Events.CombatManueverPhase, Systems.Priority.LOWEST)
@@ -162,7 +185,7 @@ class Battle(Systems.System):
             eid: i for i, (eid, _) in enumerate(combatants)
         }
         relationships = np.zeros((combatant_count, combatant_count), dtype=np.int32)
-        postures = np.zeros(combatant_count, dtype=np.int32)
+        postures = np.zeros((combatant_count, 4), dtype=np.float32)
         directions = np.zeros((combatant_count, 2), dtype=np.float32)
         turn_speeds = np.zeros(combatant_count, dtype=np.float32)
         has_target = np.zeros(combatant_count, dtype=np.int32)
@@ -175,7 +198,7 @@ class Battle(Systems.System):
                 else Components.Combatant.Relationship.NONPARTY
                 for other, other_combatant in combatants
             ]
-            postures[i] = source_combatant.posture
+            postures[i] = np.array(source_combatant.posture, dtype=np.float32)
             directions[i] = source_combatant.forward[:2]
             turn_speeds[i] = np.radians(source_combatant.turn_speed)
             has_target[i] = 0
@@ -183,18 +206,10 @@ class Battle(Systems.System):
                 has_target[i] = 1
                 target_directions[i] = (Components.Combatant[source_combatant.target].pos - source_combatant.pos)[:2]
 
-        posture_matrix = np.array(
-            ( # SELF, TARGET, PARTY, NONPARTY
-                [0, 0, 0, 1], #EVASIVE
-                [0, -1, 0, -0.5], #AGGRESSIVE
-                [0, -1, -0.1, -0.35], #DEFENSIVE
-                [0, 0, 0, 0], #PASSIVE/flat footed
-            ),
-            dtype=np.float32
-        )
-        interests = posture_matrix[postures[:, np.newaxis], relationships]
+        interests = postures[np.arange(combatant_count)[:, np.newaxis], relationships]
         interests_map = np.einsum("aij,aj->ai", dots, interests)
         interests_map += np.einsum("aik,ak->ai", vectors, directions) * 0.05
+        is_moving = np.sum(np.abs(postures), axis=1) > 0
 
         #Raycast and -inf out collision directions
         blocked = np.zeros((combatant_count, Battle.Constants.NUM_WHISKERS), dtype=np.float32)
@@ -212,7 +227,7 @@ class Battle(Systems.System):
         chosen_norms = np.linalg.norm(chosen_vectors, axis=1, keepdims=1)
         with np.errstate(divide='ignore', invalid='ignore'):
             chosen_normalized = chosen_vectors / chosen_norms
-        chosen_final  = chosen_normalized
+        chosen_final  = chosen_normalized * is_moving[:, np.newaxis]
 
 
         # Rotate forward towards final
@@ -220,7 +235,11 @@ class Battle(Systems.System):
         with np.errstate(divide='ignore', invalid='ignore'):
             target_directions = target_directions / target_norms
         angle_forward = np.arctan2(directions[:, 1], directions[:, 0])
-        desired_forward = np.where(has_target[:, np.newaxis] == 1, target_directions, chosen_final)
+        desired_forward = np.where(
+            has_target[:, np.newaxis] == 1,
+            target_directions,
+            np.where(is_moving[:, np.newaxis], chosen_final, directions)
+        )
 
         angle_chosen = np.arctan2(desired_forward[:, 1], desired_forward[:, 0])
         angle_diffs = (angle_chosen-angle_forward+np.pi) % (2*np.pi) - np.pi
@@ -233,9 +252,11 @@ class Battle(Systems.System):
 
         for i,(eid, combatant) in enumerate(combatants):
             match combatant.status:
-                case Components.Combatant.Status.MANUEVER | Components.Combatant.Status.ACT:
+                case Components.Combatant.Status.LOCKED:
+                    pass
+                case Components.Combatant.Status.MANUEVER | Components.Combatant.Status.ACT | Components.Combatant.Status.STANDBY:
                     velocity = chosen_final[i][:2]*combatant.move_speed
-                    #combatant.forward = forward_final[i]
+                    combatant.forward = forward_final[i]
                     combatant.body.velocity = tuple(velocity)
 
         self.world.step(event.dt)
@@ -311,11 +332,27 @@ class Battle(Systems.System):
         if players:
             player = Components.Combatant[players[0]]
             player_party = player.party_id
+
         if player_party == combatant.party_id:
-            combatant.posture = event.posture
+            combatant.action = event.action
             combatant.target = event.target
+            action = Resources.CombatAction[event.action]
+            if action:
+                combatant.posture = tuple(action.posture)
             self.state = Battle.State.READY
             self.camera_target = None
         else:
             pass #TODO: This is pretty serious. How is a non-party member getting player commands?
+        return event.result
+
+    @Systems.on(Events.CombatDamage, Systems.Priority.LOWEST)
+    async def onCombatDamage(self, event: Events.CombatDamage) -> Events.Result:
+        print(f"{event.eid} THWACKS {event.target} with GUSTO!")
+        return event.result
+
+    @Systems.on(Events.CombatActionComplete, Systems.Priority.LOWEST)
+    async def onCombatActionComplete(self, event: Events.CombatActionComplete) -> Events.Result:
+        combatant = Components.Combatant[event.eid]
+        combatant.status = Components.Combatant.Status.MANUEVER
+        combatant.progress = 0
         return event.result

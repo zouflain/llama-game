@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation
-from enum import Enum, auto as EnumAuto
+from enum import Flag, Enum, auto as EnumAuto
 import Systems, Events, Components, Resources
 
 
@@ -22,6 +22,10 @@ class BattleAnimator(Components.Component):
 
 
 class Combatant(Components.Component):
+    class TargetFlags(Flag):
+        SAME_PARTY = EnumAuto()
+        ALIVE = EnumAuto()
+
     class Relationship(int, Enum):
         SELF = 0
         TARGET = 1
@@ -29,35 +33,38 @@ class Combatant(Components.Component):
         NONPARTY = 3
 
     class Status(int, Enum):
-        MANUEVER = EnumAuto()
-        ACT = EnumAuto()
-        LOCKED = EnumAuto()
-
-    class Posture(int, Enum):
-        EVASIVE = 0 # Ignore Target, Ignore Allies, evade enemies (eg to evade damage)
-        AGGRESSIVE = 1 # Ignore Allies, approach enemies (eg to be positioned to attack)
-        DEFENSIVE = 2 # Ignore enemies, approach allies (eg to be positioned for defense)
-        PASSIVE = 3
+        MANUEVER = EnumAuto() # Can move
+        ACT = EnumAuto() # Has chosen action
+        EXECUTE = EnumAuto() # Is executing action
+        LOCKED = EnumAuto() # Hitstun
+        STANDBY = EnumAuto() # Has chosen standby action
 
     def __init__(self, party_id: int, body, eid: int = None, pos: np.ndarray[tuple[float, float, float]] = np.zeros(3, dtype=np.float32), mannequin: str = None, active_meshes: list[str] = None, **kwargs):
         super().__init__(eid, **kwargs)
-        self.body = body
+        # Logic
         self.party_id: int = party_id
-        self.pos: np.ndarray[tuple[float, float, float]] = pos
-        self.mannequin: str = mannequin
-        self.active_meshes: list[str] = active_meshes or []
         self.target: int = None
+        self.status: Combatant.Status = Combatant.Status.MANUEVER
+        self.posture: tuple[float, float, float, float] = [0, 0, 0, 0] # defensive
+        self.available_actions: list[str] = ["Strike"]
+        self.poise: float = 100
         self.action = None
+
+        # Data
+        self.body = body
+        self.pos: np.ndarray[tuple[float, float, float]] = pos
         self.forward:np.array = np.array([1, 0, 0], dtype=np.float32)
         self.scale = 70
-        self.frame = 0
         self.progress: float = 0
         self.progress_speed = 90.
         self.move_speed:float = 200.
         self.turn_speed:float = 360.
         self.size: float = 100
-        self.status = Combatant.Status.MANUEVER
-        self.posture = Combatant.Posture.AGGRESSIVE
+
+        # Render details
+        self.mannequin: str = mannequin
+        self.active_meshes: list[str] = active_meshes or []
+        self.frame = 0
         self.animations = [
             {
                 "start_frame": self.frame,
@@ -133,8 +140,14 @@ class PlayerCombatantReady(Events.Event):
         self.eid: int = eid
 
 class PlayerCombatantCommand(Events.Event):
-    def __init__(self, eid: int, posture: int, target: int, **kwargs):
+    def __init__(self, eid: int, action: str, target: int, **kwargs):
         super().__init__(**kwargs)
         self.eid: int = eid
-        self.posture: int = posture
+        self.action: str = action
         self.target = target
+
+
+class CombatActionComplete(Events.Event):
+    def __init__(self, eid: int, **kwargs):
+        super().__init__(**kwargs)
+        self.eid = eid

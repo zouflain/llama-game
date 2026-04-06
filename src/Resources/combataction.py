@@ -5,24 +5,15 @@ import yaml
 
 
 class CombatAction(Resource):
-    class HookResponse(int, Enum):
-        SUCCESS = EnumAuto()
-        FAILURE = EnumAuto()
-        IGNORE = EnumAuto()
-
-
     def __init__(self, name: str, permanent: bool, definition: dict, **kwargs):
         super().__init__(name=name, permanent=permanent, **kwargs)
         self.__dict__.update(definition)
 
-    async def onHook(self, eid: int, hook:str) -> CombatAction.HookResponse:
-        result = CombatAction.HookResponse.IGNORE
-        if hook in self.hooks:
-            match hook:
-                case _:
-                    pass
-
-        return result
+    def onHook(self, hook:str) -> list[tuple[str, dict]]:
+        return [
+            (data.get("event"), data.get("fields") or {})
+            for data in self.hooks.get(hook, [])
+        ]
 
     @staticmethod
     async def allocate(name: str, permanent: bool, definition: dict, **kwargs) -> Resource:
@@ -34,6 +25,7 @@ class CombatAction(Resource):
     async def loadAllActions() -> list[str]:
         fs = Resource.file_system()
         for path in fs.walk.files("/actions/combat-actions/"):
+            print(path)
             with fs.open(path, "r") as file:
                 definitions = yaml.safe_load(file)
                 for action in definitions.get("actions", []):

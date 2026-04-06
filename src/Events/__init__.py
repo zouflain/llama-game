@@ -77,11 +77,11 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n'''{ast.get_docstring(node)} or '...''''\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n    '''{ast.get_docstring(node)} or '...''''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"
-                                stub_lines.append(f"\tdef {item.name}({signature}):\n'''{ast.get_docstring(item) or '...'}'''\n\n")
+                                stub_lines.append(f"    def {item.name}({signature}):\n        '''{ast.get_docstring(item) or '...'}'''\n\n")
                         
         except Exception:
             continue
@@ -100,6 +100,7 @@ def __getattr__(name):
 
     path = _CONTENT_MAP[name]
     if path not in _FILE_CACHE:
+        _FILE_CACHE.add(path)
         namespace = set(globals().keys())
         with open(path, "r") as file:
             exec(compile(file.read(), str(path), 'exec'), globals())
@@ -111,8 +112,6 @@ def __getattr__(name):
                 Event._Event__registry[key] = obj
             else:
                 del globals()[key]
-
-        _FILE_CACHE.add(path)
     return globals().get(name)
         
 def __dir__():

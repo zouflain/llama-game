@@ -91,7 +91,7 @@ class System:
     @staticmethod
     def yieldEvents() -> Iterator[Event]:
         while len(System.__pending_events) > 0:
-            yield System.__pending_events.pop()
+            yield System.__pending_events.pop(0)
 
     @staticmethod
     async def register(system: System, **kwargs) -> bool:
@@ -153,7 +153,8 @@ from importlib.util import spec_from_file_location, module_from_spec
 
 _CONTENT_MAP = {}
 _INITIALIZED = False
-_CLASS_NAME = "System"
+_CLASS = System
+_CLASS_NAME = _CLASS.__name__
 
 def _discover():
     global _INITIALIZED
@@ -176,11 +177,11 @@ def _discover():
                         for base in node.bases
                     ):
                         _CONTENT_MAP[node.name] = path
-                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n'''{ast.get_docstring(node) or '...'}'''\n")
+                        stub_lines.append(f"class {node.name}({_CLASS_NAME}):\n    '''{ast.get_docstring(node) or '...'}'''\n")
                         for item in node.body:
                             if isinstance(item, ast.FunctionDef):
                                 signature = ast.unparse(item.args) if hasattr(ast, 'unparse') else "self, **kwargs"
-                                stub_lines.append(f"\tdef {item.name}({signature}):\n'''{ast.get_docstring(item) or '...'}'''\n\n")
+                                stub_lines.append(f"    def {item.name}({signature}):\n        '''{ast.get_docstring(item) or '...'}'''\n\n")
                         
         except Exception:
             continue
@@ -196,15 +197,18 @@ def __getattr__(name):
     if name not in _CONTENT_MAP:
         raise AttributeError(f"Module '{_CLASS_NAME}s' has no {_CLASS_NAME} named '{name}'")
     
-    path = _CONTENT_MAP[name]
-    spec = spec_from_file_location(name, str(path))
-    mod = module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    
-    cls = getattr(mod, name)
-    globals()[name] = cls
-    return cls
+    if name not in globals():
+        path = _CONTENT_MAP[name]
+        spec = spec_from_file_location(name, os.fspath(path))
+        mod = module_from_spec(spec)
+        spec.loader.exec_module(mod)
 
+        for attr in dir(mod):
+            cls = getattr(mod, attr)
+            if isinstance(cls, type) and issubclass(cls, _CLASS) and cls is not _CLASS:
+                globals()[attr] = cls
+    return globals()[name]
+    
 def __dir__():
     _discover()
     return list(globals().keys()) + list(_CONTENT_MAP.keys())

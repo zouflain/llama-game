@@ -93,6 +93,19 @@ class Radial extends UIElement{
                     });
                 }
             }
+            if("A" in event.detail && event.detail.A){
+                /*let mouse = window.GameEventBus.clickMouse();
+                console.log(JSON.stringify(mouse));
+                this.element.dispatchEvent(new MouseEvent("click", {
+                    view: window,
+                    bubbles: true,
+                    cancelable: true,
+                    clientX: mouse.x,
+                    clientY: mouse.y,
+                    shiftKey: false
+                }));*/
+                ClickMouse();
+            }
         }, this.controller.signal);
     }
     position(offset){

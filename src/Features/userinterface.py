@@ -183,6 +183,7 @@ class UserInterface(Systems.System):
         self.gl_texture: int = 0
         self._callbacks = {}
         self.cursor_state = 0
+        self.last_mouse = {"x": 0, "y": 0}
 
         if not self._ffi:
             self._ffi = FFI()
@@ -269,6 +270,33 @@ class UserInterface(Systems.System):
                 Systems.raiseEvent(event_type(**data))
         return self._ffi.NULL
 
+    def jsClickMouse(self, ctx, func, this, argc, args, exception):
+        for evt_type in [self._lib.kMouseEventType_MouseDown, self._lib.kMouseEventType_MouseUp]:
+            evt = self._lib.ulCreateMouseEvent(
+                evt_type,
+                self.last_mouse.get("x", 0),
+                self.last_mouse.get("y", 0),
+                self._lib.kMouseButton_Left
+            )
+            self._lib.ulViewFireMouseEvent(self.view, evt)
+            self._lib.ulDestroyMouseEvent(evt)
+        return self._ffi.NULL
+        
+
+    def jsGetMouse(self, ctx, func, this, argc, args, exception):
+        result = self._lib_wc.JSObjectMake(ctx, self._ffi.NULL, self._ffi.NULL)
+        x_str = self._lib_wc.JSStringCreateWithUTF8CString("x".encode("utf-8"))
+        y_str = self._lib_wc.JSStringCreateWithUTF8CString("y".encode("utf-8"))
+        x_val = self._lib_wc.JSValueMakeNumber(ctx, self.last_mouse.get("x", 0))
+        y_val = self._lib_wc.JSValueMakeNumber(ctx, self.last_mouse.get("y", 0))
+        self._lib_wc.JSObjectSetProperty(ctx, result, x_str, x_val, 0, self._ffi.NULL)
+        self._lib_wc.JSObjectSetProperty(ctx, result, y_str, y_val, 0, self._ffi.NULL)
+        self._lib_wc.JSStringRelease(x_str)
+        self._lib_wc.JSStringRelease(y_str)
+
+        return result
+        
+
     def helperJSExtractJSON(self, ref, context) -> dict:
         js_data_str = self._lib_wc.JSValueCreateJSONString(context, ref, 0, self._ffi.NULL)
         js_strlen = self._lib_wc.JSStringGetMaximumUTF8CStringSize(js_data_str)
@@ -311,6 +339,8 @@ class UserInterface(Systems.System):
             self._lib_wc.JSStringRelease(js_func_name)
         
         makeJSFunction("TriggerGameEvent", "TriggerGameEvent", self.jsTriggerEvent)
+        makeJSFunction("GetMouse", "GetMouse", self.jsGetMouse)
+        makeJSFunction("ClickMouse", "ClickMouse", self.jsClickMouse)
         self._lib.ulViewUnlockJSContext(self.view)
 
     def callbackChangeCursor(self, user_data, caller, cursor): # TODO: actually change cursor, this is test/placeholder
@@ -378,6 +408,10 @@ class UserInterface(Systems.System):
                         )
                     )
                 )
+                self.last_mouse = {
+                    "x": event.sdl_event.motion.x,
+                    "y": event.sdl_event.motion.y
+                }
             case SDL.SDL_MOUSEBUTTONDOWN | SDL.SDL_MOUSEBUTTONUP:
                 evt_type = self._lib.kMouseEventType_MouseDown
                 if event.sdl_event.type == SDL.SDL_MOUSEBUTTONUP:
@@ -557,16 +591,6 @@ class UserInterface(Systems.System):
     @Systems.on(Events.CombatTick, Systems.Priority.DEFAULT)
     async def onCombatTick(self, event: Events.CombatTick) -> Events.Result:
         await self.tickHelper(event.view, event.projection, event.last_resolution)
-        return event.result
-
-    @Systems.on(Events.BattleBegin, Systems.Priority.LOWEST)
-    async def onBattleBegin(self, event: Events.BattleBegin) -> Events.Result:
-        init_data = {
-            "postures": {
-                str(entry).split(".")[-1]: int(entry) for entry in Components.Combatant.Posture
-            }
-        }
-        await Systems.immediateEvent(Events.UIEvent("CombatInit", **init_data))
         return event.result
 
     @Systems.on(Events.PlayerCombatantReady, Systems.Priority.LOWEST)

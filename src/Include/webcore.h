@@ -2,11 +2,14 @@ typedef void* JSContextRef;
 typedef void* JSObjectRef;
 typedef void* JSValueRef;
 typedef void* JSStringRef;
+typedef void* JSClassRef;
 typedef JSValueRef* JSValueRefPtr;
 typedef JSValueRef (*JSObjectCallAsFunctionCallback)(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRefPtr exception);
 
 JSObjectRef JSContextGetGlobalObject(JSContextRef ctx);
 JSStringRef JSStringCreateWithUTF8CString(const char* string);
+JSObjectRef JSObjectMake(JSContextRef ctx, JSClassRef jsClass, void* data);
+JSValueRef JSValueMakeNumber(JSContextRef ctx, double number);
 JSObjectRef JSObjectMakeFunctionWithCallback(JSContextRef ctx, JSStringRef name, JSObjectCallAsFunctionCallback callback);
 void JSObjectSetProperty(JSContextRef ctx, JSObjectRef object, JSStringRef name, JSValueRef value, int attributes, JSValueRef* exception);
 JSValueRef JSObjectGetProperty(JSContextRef ctx, JSObjectRef object, JSStringRef propertyName, JSValueRef* exception);

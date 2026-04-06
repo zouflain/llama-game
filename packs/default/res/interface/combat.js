@@ -5,7 +5,6 @@ class CombatUI{
         this.active_entity = null;
         this.active_ui = null;
         this.parent = parent;
-        this.postures = {};
         this.radials = {
             main: new Radial(
                 {inner: 150, outer: 250},
@@ -19,7 +18,7 @@ class CombatUI{
                                 "PlayerCombatantCommand",
                                 {
                                     eid: this.active_entity,
-                                    posture: entity.posture,
+                                    action: "Strike",
                                     target: entity.target
                                 }
                             );
@@ -40,7 +39,6 @@ class CombatUI{
         }
         window.GameEventBus.on("CombatUpdate", this.onTickUpdate.bind(this));
         window.GameEventBus.on("CombatReadyEntity", this.setReadyEntity.bind(this));
-        window.GameEventBus.on("CombatInit", this.init.bind(this));
     }
     render(hide=false){
         if(this.element!= null){
@@ -60,9 +58,6 @@ class CombatUI{
         }
 
         return this.element;
-    }
-    init(data){
-        this.postures = data.postures;
     }
     setReadyEntity(data){
         this.active_entity = Number(data.eid);
