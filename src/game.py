@@ -137,8 +137,8 @@ class Game:
             for i in range(SDL.SDL_NumJoysticks()):
                 self.joysticks.append(SDL.SDL_GameControllerOpen(i))
 
-        # Grab the mouse
         #SDL.SDL_SetWindowMouseGrab(self.window, SDL.SDL_TRUE)
+        SDL.SDL_GL_SetSwapInterval(0)
 
 
 
@@ -181,7 +181,7 @@ class Game:
         await Systems.register(Systems.AudioController())
         await Systems.register(Systems.GamepadController())
         
-        await Systems.immediateEvent(Events.BattleBegin(arena_size=(1000,1000)))
+        await Systems.immediateEvent(Events.BattleBegin(arena_size=(10000,10000)))
 
         player_evt = await Systems.immediateEvent(Events.GenerateEntity())
         Components.Player(player_evt.entity)
@@ -210,14 +210,21 @@ class Game:
                 ]
             ))
             combatant = Components.Combatant[enemy_evt.entity]
-            combatant.target = player_evt.entity
             if i == 0:
                 combatant.active_meshes.extend(["Icosphere", "Spellbook", "Spellbook_open"])
 
         #####END TEST CODE#####
+        last_fps = time.monotonic()
+        frame_count = 0
 
         while self.is_running:
             now = time.monotonic()
+            delta = now - last_fps
+            frame_count +=1
+            if delta > 10:
+                print(frame_count/delta)
+                frame_count = 0
+                last_fps = time.monotonic()
 
             # Handle events
             last_motion = None

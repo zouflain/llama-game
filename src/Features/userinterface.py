@@ -1,6 +1,7 @@
 from __future__ import annotations
 from cffi import FFI
 from enum import Enum, auto as EnumAuto
+from collections import defaultdict
 import numpy as np
 import OpenGL.GL as GL
 import sdl2 as SDL
@@ -570,6 +571,8 @@ class UserInterface(Systems.System):
             clip_space =  np.array(projection, dtype=np.float32).reshape(4,4) @ np.array(view, dtype=np.float32).reshape(4,4) @ np.append(combatant.pos, 1)
             norm_device = clip_space[:3]/clip_space[3]
             screen_pos = (norm_device[:2] + 1.)/2.
+
+
             entities[eid] = {
                 "status": combatant.status,
                 "progress": combatant.progress,
@@ -595,7 +598,30 @@ class UserInterface(Systems.System):
 
     @Systems.on(Events.PlayerCombatantReady, Systems.Priority.LOWEST)
     async def onPlayerReady(self, event: Events.PlayerCombatantReady) -> Events.Result:
-        await Systems.immediateEvent(Events.UIEvent("CombatReadyEntity", eid=event.eid))
+        combatant = Components.Combatant[event.eid]
+        heirarchy = {}
+        if combatant:
+            heirarchy = {
+                "type": "tree",
+                "nodes": {}
+            }
+            for action_name in combatant.available_actions:
+                action = Resources.CombatAction[action_name]
+                targets = [152, 153] # TODO: actually parse targets
+                current_level = heirarchy
+                for level in action.heirarchy:
+                    current_level = current_level["nodes"].setdefault(
+                        level,
+                        {
+                            "type": "tree",
+                            "nodes": {}
+                        }
+                    )
+                current_level["nodes"][action_name] = {
+                    "type": "action",
+                    "targets": targets
+                }
+        await Systems.immediateEvent(Events.UIEvent("CombatReadyEntity", eid=event.eid, actions=heirarchy))
         return event.result
 
     @Systems.on(Events.UIEvent, Systems.Priority.LOWEST)
@@ -617,5 +643,5 @@ class UserInterface(Systems.System):
 
     @Systems.on(Events.UISnapMouse, Systems.Priority.LOWEST)
     async def onSnapMouse(self, event: Events.UISnapMouse) -> Events.Result:
-        SDL.SDL_WarpMouseInWindow(None, int(event.center.get("x", 0)), int(event.center.get("y", 0)))
+        SDL.SDL_WarpMouseInWindow(None, max(0, int(event.center.get("x", 0))), max(0, int(event.center.get("y", 0))))
         return event.result

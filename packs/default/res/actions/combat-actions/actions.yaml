@@ -9,21 +9,50 @@ actions:
       damage:
         - event: "CombatDamage"
           fields:
+            base: 100
+            stagger: 10
         - event: "CombatActionComplete"
           fields:
     requirements:
-      is:
+      require:
         - ALIVE
-      not:
+      exclude:
         - SAME_PARTY
     range: 40
     state: ACT
+  - name: "Escort"
+    heirarchy:
+      - "Manuever"
+    posture: [0, -1, 0, -0.5]
+    animation: null
+    icon: "someicon.png"
+    hooks: {}
+    requirements:
+      require:
+        - SAME_PARTY
+        - ALIVE
+    state: STANDBY
   - name: "Heavy"
     heirarchy:
       - "Fight"
     posture: [0, -1, 0, -0.5]
     animation: "swing-sword"
     icon: "someicon.svg"
+    hooks:
+      damage:
+        - event: "CombatDamage"
+          fields:
+            base: 100
+            stagger: 10
+        - event: "CombatActionComplete"
+          fields:
+    requirements:
+      require:
+        - ALIVE
+      exclude:
+        - SAME_PARTY
+    range: 40
+    state: ACT
   - name: "Fireball"
     heirarchy:
       - "Fight"
@@ -31,3 +60,38 @@ actions:
     posture: [1, -1, 0, -1]
     animation: "cast-spell"
     icon: "do-stuff.jpeg"
+    hooks:
+      damage:
+        - event: "CombatDamage"
+          fields:
+            base: 100
+            stagger: 10
+        - event: "CombatActionComplete"
+          fields:
+    requirements:
+      require:
+        - ALIVE
+      exclude:
+        - SAME_PARTY
+    range: 40
+    state: ACT
+  - name: "Quick Strike"
+    heirarchy: []
+    posture: [0, -1, 0, -0.5]
+    animation: "swing-sword"
+    icon: "someicon.png"
+    hooks:
+      damage:
+        - event: "CombatDamage"
+          fields:
+            base: 100
+            stagger: 10
+        - event: "CombatActionComplete"
+          fields:
+    requirements:
+      require:
+        - ALIVE
+      exclude:
+        - SAME_PARTY
+    range: 40
+    state: ACT

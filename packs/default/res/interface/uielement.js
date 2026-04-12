@@ -10,6 +10,7 @@ class UIElement{
             this.element.remove();
             this.element = null;
             this.controller.abort();
+            this.controller = new AbortController();
         }
     }
 }

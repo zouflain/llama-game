@@ -10,13 +10,6 @@ import logging
 
 import Systems, Events, Components, Resources
 
-class CombatDamage(Events.Event):
-    def __init__(self, eid: int, target: int, **kwargs):
-        super().__init__(**kwargs)
-        self.eid = eid
-        self.target = target
-
-
 class Battle(Systems.System):
     class Constants (int, Enum):
         COLOR = 0
@@ -27,6 +20,8 @@ class Battle(Systems.System):
 
         IMAGE_UNIT = 32  # size of an individual image unit (for subdivision of compute shader)
         NUM_WHISKERS = 32
+        MAX_DISTANCE_CONSIDERED = 1000
+        MAX_STRAFE_DISTANCE = 500
 
     class State(int, Enum):
         READY = EnumAuto()
@@ -125,6 +120,10 @@ class Battle(Systems.System):
             player_party = player.party_id
 
         for eid, combatant in combatants:
+            # Respond to stagger
+            if combatant.stagger > 100:
+                await Systems.immediateEvent(Events.BeginStagger(eid=eid))
+
             #advance animation?
 
             # Advance progress
@@ -175,9 +174,9 @@ class Battle(Systems.System):
 
         pos = np.array([combatant.pos[:2] for _, combatant in combatants])
         delta_pos = pos[:, np.newaxis, :] - pos[np.newaxis, :, :]
-        delta_norms = np.linalg.norm(delta_pos, axis=2)
+        distances = np.linalg.norm(delta_pos, axis=2)
         with np.errstate(divide="ignore", invalid="ignore"):
-            delta_dir = np.nan_to_num(delta_pos / delta_norms[:, :, np.newaxis])
+            delta_dir = np.nan_to_num(delta_pos / distances[:, :, np.newaxis])
         dots = np.einsum("aik,ajk->aij", vectors, delta_dir)
 
         # Setup interests array
@@ -206,9 +205,20 @@ class Battle(Systems.System):
                 has_target[i] = 1
                 target_directions[i] = (Components.Combatant[source_combatant.target].pos - source_combatant.pos)[:2]
 
-        interests = postures[np.arange(combatant_count)[:, np.newaxis], relationships]
-        interests_map = np.einsum("aij,aj->ai", dots, interests)
-        interests_map += np.einsum("aik,ak->ai", vectors, directions) * 0.05
+        relations_map = postures[np.arange(combatant_count)[:, np.newaxis], relationships]
+        interests_map = np.full((combatant_count, Battle.Constants.NUM_WHISKERS), 0, dtype=np.float32)
+        cross_interests = dots * relations_map[:, np.newaxis, :]
+        #tangent_interests = 1.0-np.abs(dots)
+        #tangent_distances = 1.0 - np.clip(effective_distances, 0.0, float(Battle.Constants.MAX_DISTANCE_CONSIDERED))/float(Battle.Constants.MAX_DISTANCE_CONSIDERED)
+        effective_distances = np.where(relationships == Components.Combatant.Relationship.TARGET, 0.0, distances)
+        scaled_distances = 1.0 - np.clip(effective_distances, 0.0, float(Battle.Constants.MAX_DISTANCE_CONSIDERED))/float(Battle.Constants.MAX_DISTANCE_CONSIDERED)
+        scaled_cross = cross_interests * scaled_distances[:, np.newaxis, :]
+        interests_map += np.sum(scaled_cross, axis=2)
+        #interests_map += np.min(cross_interests, axis=2)
+        #interests_map += np.einsum("aij,aj->ai", dots, relations_map)
+        #interests_map += np.einsum("aik,ak->ai", vectors, directions) * 0.2#0.05
+
+
         is_moving = np.sum(np.abs(postures), axis=1) > 0
 
         #Raycast and -inf out collision directions
@@ -216,18 +226,27 @@ class Battle(Systems.System):
         for i, (eid, combatant) in enumerate(combatants):
             filter = pymunk.ShapeFilter(group=eid)
             for j in range(Battle.Constants.NUM_WHISKERS):
-                offset_pos = tuple(np.array(combatant.body.position, dtype=np.float32)+vectors[i][j]*combatant.move_speed)
+                offset_pos = tuple(np.array(combatant.body.position, dtype=np.float32)+vectors[i][j]*combatant.size*3)
                 collision = self.world.segment_query_first(combatant.body.position, offset_pos, combatant.size, filter)
                 blocked[i][j] = 1 if collision else 0
-        decollided_interests = np.where(blocked.astype(bool), -float('inf'), interests_map)
+        #decollided_interests = np.where(blocked.astype(bool), -float('inf'), interests_map)
+        decollided_interests = np.where(blocked.astype(bool), -1, interests_map)
 
         # Choose best option
-        preferred_indices = np.argmax(decollided_interests, axis=1)
+        '''preferred_indices = np.argmax(decollided_interests, axis=1)
         chosen_vectors = vectors[np.arange(combatant_count), preferred_indices]
         chosen_norms = np.linalg.norm(chosen_vectors, axis=1, keepdims=1)
         with np.errstate(divide='ignore', invalid='ignore'):
             chosen_normalized = chosen_vectors / chosen_norms
+        chosen_final  = chosen_normalized * is_moving[:, np.newaxis]'''
+        chosen_vectors = np.sum(vectors * decollided_interests[:, :, np.newaxis], axis=1)
+        chosen_norms = np.linalg.norm(chosen_vectors, axis=1, keepdims=True)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            #chosen_normalized = chosen_vectors / chosen_norms
+            chosen_normalized = np.divide(chosen_vectors, chosen_norms, out=np.zeros_like(chosen_vectors), where=chosen_norms > 1e-5)
+
         chosen_final  = chosen_normalized * is_moving[:, np.newaxis]
+
 
 
         # Rotate forward towards final
@@ -255,9 +274,19 @@ class Battle(Systems.System):
                 case Components.Combatant.Status.LOCKED:
                     pass
                 case Components.Combatant.Status.MANUEVER | Components.Combatant.Status.ACT | Components.Combatant.Status.STANDBY:
-                    velocity = chosen_final[i][:2]*combatant.move_speed
+                    in_range = False
+                    if combatant.action and combatant.target in eid_lookup:
+                        target = Components.Combatant[combatant.target]
+                        distance = distances[i][eid_lookup[combatant.target]]
+                        action = Resources.CombatAction[combatant.action]
+                        if action:
+                            in_range = distance.item() < action.range + (combatant.size + target.size)/2.0
+                    if not in_range:
+                        velocity = chosen_final[i][:2]*combatant.move_speed
+                        combatant.body.velocity = tuple(velocity)
+                    else:
+                        combatant.body.velocity =(0,0)
                     combatant.forward = forward_final[i]
-                    combatant.body.velocity = tuple(velocity)
 
         self.world.step(event.dt)
         for i,(eid, combatant) in enumerate(combatants):
@@ -355,4 +384,27 @@ class Battle(Systems.System):
         combatant = Components.Combatant[event.eid]
         combatant.status = Components.Combatant.Status.MANUEVER
         combatant.progress = 0
+        combatant.posture = combatant.default_posture
+        combatant.action = None
+        combatant.target = None
+        return event.result
+
+    @Systems.on(Events.AICombatantReady, Systems.Priority.LOWEST)
+    async def onAICombatantReady(self, event: Events.AICombatantReady) -> Events.Result:
+        combatant = Components.Combatant[event.eid]
+        players = Components.find([Components.Player, Components.Combatant])
+        player_party = 0
+        player_id = 0
+        if players:
+            player = Components.Combatant[players[0]]
+            player_party = player.party_id
+            player_id = player.eid
+
+        if player_party != combatant.party_id:
+            combatant.action = "Strike"
+            combatant.target = player_id
+            combatant.status = Components.Combatant.Status.ACT
+            action = Resources.CombatAction[combatant.action]
+            if action:
+                combatant.posture = tuple(action.posture)
         return event.result

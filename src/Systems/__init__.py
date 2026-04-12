@@ -38,6 +38,11 @@ class System:
                 metadata = attr._listener
                 self.addListener(metadata["event"], metadata["priority"], attr, **metadata["kwargs"])
 
+
+    def addListener(self, event: Type, priority: int, callback: Callable[[Event, ...], bool], **kwargs) -> None:
+        self.listeners[event].append(System.Listener(self, priority, callback, **kwargs))
+        System.__recache(event)
+
     @staticmethod
     def __recache(event_type: Type[Event]) -> None:
         listeners = [
@@ -47,11 +52,6 @@ class System:
         ]
         listeners.sort(key=lambda l: l.priority, reverse=True)
         System.__listener_cache[event_type] = listeners
-
-
-    def addListener(self, event: Type, priority: int, callback: Callable[[Event, ...], bool], **kwargs) -> None:
-        self.listeners[event].append(System.Listener(self, priority, callback, **kwargs))
-        System.__recache(event)
 
     @staticmethod
     def on(event: Type[Event], priority: int, **kwargs):

@@ -42,7 +42,7 @@ class Component:
 
     @property
     def eid(self) -> int:
-        return _eid
+        return self._eid
 
     @classmethod
     def remove(cls, eid: int) -> None:

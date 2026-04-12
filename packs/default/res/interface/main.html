@@ -23,7 +23,7 @@
                         try{
                             callback(data);
                         }catch(err){
-                            console.error("No"+err);//TODO: nicer error reporting. LOG IT!
+                            console.error(`Error in event '${event}': ${err}`);//TODO: nicer error reporting. LOG IT!
                         }
                     }
                 },

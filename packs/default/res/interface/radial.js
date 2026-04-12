@@ -1,8 +1,9 @@
 class Radial extends UIElement{
-    constructor(circle, options = null, styles = null){
+    constructor(circle, options, previous = null, styles = null){
         super();
-        this.options = options ?? {};
+        this.options = options;
         this.circle = circle;
+        this.previous = previous ?? "main";
         this.styles = styles ?? {};
     }
     render(parent_element, screen_pos){
@@ -61,58 +62,62 @@ class Radial extends UIElement{
         }
 
         document.addEventListener("gamepad", (event)=>{
-            if("STICK_L" in event.detail){
-                let dsqr = event.detail.STICK_L.x*event.detail.STICK_L.x+event.detail.STICK_L.y*event.detail.STICK_L.y;
-                let bounds = this.element.getBoundingClientRect();
-                if(dsqr > 0.025){
-                    let distance = (this.circle.outer+this.circle.inner)/2;
-                    let angle = Math.atan2(event.detail.STICK_L.y, event.detail.STICK_L.x);
-                    let idx_angle = Math.PI/2 - angle_step/2;
-                    let idx = 0;
-                    while(idx + 1 < this.options.length){
-                        if(idx_angle <= angle && idx_angle + angle_step >= angle){
-                            break;
+            if(this.element){
+                if("STICK_L" in event.detail){
+                    let dsqr = event.detail.STICK_L.x*event.detail.STICK_L.x+event.detail.STICK_L.y*event.detail.STICK_L.y;
+                    let bounds = this.element.getBoundingClientRect();
+                    if(dsqr > 0.025){
+                        let distance = (this.circle.outer+this.circle.inner)/2;
+                        let angle = Math.atan2(event.detail.STICK_L.y, event.detail.STICK_L.x);
+                        let idx_angle = Math.PI/2 - angle_step/2;
+                        let idx = 0;
+                        while(idx + 1 < this.options.length){
+                            if(idx_angle <= angle && idx_angle + angle_step >= angle){
+                                break;
+                            }
+                            idx += 1
+                            idx_angle -= angle_step;
                         }
-                        idx += 1
-                        idx_angle -= angle_step;
-                    }
-                    let final_angle = angle_start + angle_step*idx;
-                    let snap = {
-                        x: Math.cos(final_angle) * distance + (bounds.left + bounds.right)/2,
-                        y: Math.sin(final_angle) * distance + (bounds.top + bounds.bottom)/2
-                    }
-                    window.GameEventBus.trigger("UISnapMouse", {
-                        center: snap
-                    });
-                }else{
-                    window.GameEventBus.trigger("UISnapMouse", {
-                        center: {
-                            x: (bounds.left + bounds.right)/2,
-                            y: (bounds.top + bounds.bottom)/2
+                        let final_angle = angle_start + angle_step*idx;
+                        let snap = {
+                            x: Math.cos(final_angle) * distance + (bounds.left + bounds.right)/2,
+                            y: Math.sin(final_angle) * distance + (bounds.top + bounds.bottom)/2
                         }
-                    });
+                        window.GameEventBus.trigger("UISnapMouse", {
+                            center: snap
+                        });
+                    }else{
+                        window.GameEventBus.trigger("UISnapMouse", {
+                            center: {
+                                x: (bounds.left + bounds.right)/2,
+                                y: (bounds.top + bounds.bottom)/2
+                            }
+                        });
+                    }
+                }
+                if("A" in event.detail && event.detail.A){
+                    /*let mouse = window.GameEventBus.clickMouse();
+                    console.log(JSON.stringify(mouse));
+                    this.element.dispatchEvent(new MouseEvent("click", {
+                        view: window,
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: mouse.x,
+                        clientY: mouse.y,
+                        shiftKey: false
+                    }));*/
+                    ClickMouse();
                 }
             }
-            if("A" in event.detail && event.detail.A){
-                /*let mouse = window.GameEventBus.clickMouse();
-                console.log(JSON.stringify(mouse));
-                this.element.dispatchEvent(new MouseEvent("click", {
-                    view: window,
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: mouse.x,
-                    clientY: mouse.y,
-                    shiftKey: false
-                }));*/
-                ClickMouse();
-            }
-        }, this.controller.signal);
+        }, {signal: this.controller.signal});
     }
     position(offset){
-        Object.assign(this.element.style, {
-            left: (offset.x - this.circle.outer)+"px",
-            top: (offset.y - this.circle.outer)+"px"
-        });
+        if(this.element){
+            Object.assign(this.element.style, {
+                left: (offset.x - this.circle.outer)+"px",
+                top: (offset.y - this.circle.outer)+"px"
+            });
+        }
     }
     defaultHover(){
         window.GameEventBus.trigger(
